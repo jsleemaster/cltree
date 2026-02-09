@@ -1,10 +1,7 @@
-use ratatui::{
-    prelude::*,
-    widgets::{StatefulWidget, Widget},
-};
+use ratatui::{prelude::*, widgets::StatefulWidget};
 
-use crate::tree::FileTree;
 use super::FileTreeWidgetState;
+use crate::tree::FileTree;
 
 pub struct FileTreeWidget<'a> {
     tree: &'a FileTree,
@@ -57,18 +54,12 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
                 Style::default().fg(Color::White)
             };
 
-            // Render the line
-            let line_area = Rect {
-                x: area.x,
-                y,
-                width: area.width,
-                height: 1,
-            };
-
             // Clear background for selected item
             if idx == selected {
                 for x in area.x..area.x + area.width {
-                    buf.get_mut(x, y).set_bg(Color::Rgb(60, 60, 80));
+                    if let Some(cell) = buf.cell_mut((x, y)) {
+                        cell.set_bg(Color::Rgb(60, 60, 80));
+                    }
                 }
             }
 
@@ -78,27 +69,32 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
             let display_width = unicode_width::UnicodeWidthStr::width(line.as_str());
             if display_width > area.width as usize {
                 if let Some(x) = area.x.checked_add(area.width.saturating_sub(1)) {
-                    buf.get_mut(x, y).set_symbol("…");
+                    if let Some(cell) = buf.cell_mut((x, y)) {
+                        cell.set_symbol("…");
+                    }
                 }
             }
         }
 
         // Show scroll indicator if needed
         if nodes.len() > visible_height {
-            let scrollbar_height = visible_height as f32 / nodes.len() as f32 * visible_height as f32;
+            let scrollbar_height =
+                visible_height as f32 / nodes.len() as f32 * visible_height as f32;
             let scrollbar_height = scrollbar_height.max(1.0) as u16;
-            let scrollbar_pos = (state.offset as f32 / nodes.len() as f32 * visible_height as f32) as u16;
+            let scrollbar_pos =
+                (state.offset as f32 / nodes.len() as f32 * visible_height as f32) as u16;
 
             let scrollbar_x = area.x + area.width - 1;
             for y in 0..visible_height as u16 {
-                let char = if y >= scrollbar_pos && y < scrollbar_pos + scrollbar_height {
+                let ch = if y >= scrollbar_pos && y < scrollbar_pos + scrollbar_height {
                     "█"
                 } else {
                     "░"
                 };
-                buf.get_mut(scrollbar_x, area.y + y)
-                    .set_symbol(char)
-                    .set_fg(Color::DarkGray);
+                if let Some(cell) = buf.cell_mut((scrollbar_x, area.y + y)) {
+                    cell.set_symbol(ch);
+                    cell.set_fg(Color::DarkGray);
+                }
             }
         }
     }

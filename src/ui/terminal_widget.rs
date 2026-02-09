@@ -1,7 +1,4 @@
-use ratatui::{
-    prelude::*,
-    widgets::Widget,
-};
+use ratatui::{prelude::*, widgets::Widget};
 
 use crate::terminal::TerminalPane;
 
@@ -28,13 +25,12 @@ impl<'a> Widget for TerminalWidget<'a> {
             let cols_to_render = (area.width as usize).min(vterm.cols());
 
             for row_idx in 0..rows_to_render {
-                for col_idx in 0..cols_to_render {
-                    if let Some(row) = grid.get(row_idx) {
-                        if let Some(cell) = row.get(col_idx) {
-                            let x = area.x + col_idx as u16;
-                            let y = area.y + row_idx as u16;
-                            if x < area.x + area.width && y < area.y + area.height {
-                                let buf_cell = buf.get_mut(x, y);
+                if let Some(row) = grid.get(row_idx) {
+                    for (col_idx, cell) in row.iter().enumerate().take(cols_to_render) {
+                        let x = area.x + col_idx as u16;
+                        let y = area.y + row_idx as u16;
+                        if x < area.x + area.width && y < area.y + area.height {
+                            if let Some(buf_cell) = buf.cell_mut((x, y)) {
                                 buf_cell.set_symbol(&cell.ch.to_string());
                                 buf_cell.set_style(cell.style);
                             }
@@ -49,9 +45,10 @@ impl<'a> Widget for TerminalWidget<'a> {
                 let cx = area.x + cursor.x as u16;
                 let cy = area.y + cursor.y as u16;
                 if cx < area.x + area.width && cy < area.y + area.height {
-                    let cell = buf.get_mut(cx, cy);
-                    let current_style = cell.style();
-                    cell.set_style(current_style.add_modifier(Modifier::REVERSED));
+                    if let Some(cell) = buf.cell_mut((cx, cy)) {
+                        let current_style = cell.style();
+                        cell.set_style(current_style.add_modifier(Modifier::REVERSED));
+                    }
                 }
             }
         } else {
@@ -72,13 +69,14 @@ impl<'a> Widget for TerminalWidget<'a> {
                 };
 
                 if let Some(row) = row_data {
-                    for col_idx in 0..cols_to_render.min(row.len()) {
+                    for (col_idx, cell) in row.iter().enumerate().take(cols_to_render) {
                         let x = area.x + col_idx as u16;
                         let y = area.y + screen_row as u16;
                         if x < area.x + area.width && y < area.y + area.height {
-                            let buf_cell = buf.get_mut(x, y);
-                            buf_cell.set_symbol(&row[col_idx].ch.to_string());
-                            buf_cell.set_style(row[col_idx].style);
+                            if let Some(buf_cell) = buf.cell_mut((x, y)) {
+                                buf_cell.set_symbol(&cell.ch.to_string());
+                                buf_cell.set_style(cell.style);
+                            }
                         }
                     }
                 }

@@ -2,8 +2,8 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use std::path::PathBuf;
 
-use crate::tree::FileTree;
 use crate::terminal::TerminalPane;
+use crate::tree::FileTree;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusedPane {
@@ -25,6 +25,7 @@ pub struct App {
     pub search_query: String,
     pub tree_width_percent: u16,
     pub show_help: bool,
+    #[allow(dead_code)]
     pub should_quit: bool,
     pub status_message: Option<String>,
 }
@@ -72,7 +73,9 @@ impl App {
         }
 
         // Help toggle
-        if key.code == KeyCode::F(1) || (key.code == KeyCode::Char('?') && self.input_mode == InputMode::Normal) {
+        if key.code == KeyCode::F(1)
+            || (key.code == KeyCode::Char('?') && self.input_mode == InputMode::Normal)
+        {
             self.show_help = !self.show_help;
             return false;
         }
@@ -159,11 +162,14 @@ impl App {
             // Toggle hidden files
             KeyCode::Char('.') => {
                 self.tree.toggle_hidden();
-                self.set_status(if self.tree.show_hidden {
-                    "Showing hidden files"
-                } else {
-                    "Hiding hidden files"
-                }.to_string());
+                self.set_status(
+                    if self.tree.show_hidden {
+                        "Showing hidden files"
+                    } else {
+                        "Hiding hidden files"
+                    }
+                    .to_string(),
+                );
             }
 
             // Switch pane
@@ -232,6 +238,7 @@ impl App {
         self.status_message = Some(message);
     }
 
+    #[allow(dead_code)]
     pub fn clear_status(&mut self) {
         self.status_message = None;
     }

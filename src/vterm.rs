@@ -80,7 +80,7 @@ impl VirtualTerminal {
     /// Feed raw PTY bytes through the vte parser
     pub fn feed(&mut self, bytes: &[u8]) {
         // Take the parser out temporarily to avoid double borrow
-        let mut parser = self.parser.take().unwrap_or_else(vte::Parser::new);
+        let mut parser = self.parser.take().unwrap_or_default();
         parser.advance(self, bytes);
         self.parser = Some(parser);
     }
@@ -95,9 +95,9 @@ impl VirtualTerminal {
         // Copy existing content
         let copy_rows = rows.min(self.rows);
         let copy_cols = cols.min(self.cols);
-        for r in 0..copy_rows {
-            for c in 0..copy_cols {
-                new_grid[r][c] = self.grid[r][c].clone();
+        for (r, new_row) in new_grid.iter_mut().enumerate().take(copy_rows) {
+            for (c, new_cell) in new_row.iter_mut().enumerate().take(copy_cols) {
+                *new_cell = self.grid[r][c].clone();
             }
         }
 
@@ -195,11 +195,7 @@ impl VirtualTerminal {
     fn parse_sgr(&mut self, params: &Params) {
         let mut iter = params.iter();
 
-        loop {
-            let param = match iter.next() {
-                Some(p) => p,
-                None => break,
-            };
+        while let Some(param) = iter.next() {
             let code = param[0];
 
             match code {
@@ -242,8 +238,7 @@ impl VirtualTerminal {
                                 let r = iter.next().map(|p| p[0] as u8).unwrap_or(0);
                                 let g = iter.next().map(|p| p[0] as u8).unwrap_or(0);
                                 let b = iter.next().map(|p| p[0] as u8).unwrap_or(0);
-                                self.current_style =
-                                    self.current_style.fg(Color::Rgb(r, g, b));
+                                self.current_style = self.current_style.fg(Color::Rgb(r, g, b));
                             }
                             _ => {}
                         }
@@ -284,8 +279,7 @@ impl VirtualTerminal {
                                 let r = iter.next().map(|p| p[0] as u8).unwrap_or(0);
                                 let g = iter.next().map(|p| p[0] as u8).unwrap_or(0);
                                 let b = iter.next().map(|p| p[0] as u8).unwrap_or(0);
-                                self.current_style =
-                                    self.current_style.bg(Color::Rgb(r, g, b));
+                                self.current_style = self.current_style.bg(Color::Rgb(r, g, b));
                             }
                             _ => {}
                         }
@@ -466,7 +460,7 @@ impl Perform for VirtualTerminal {
                 self.cursor.x = tab_stop.min(self.cols.saturating_sub(1));
             }
             // Line Feed / Vertical Tab / Form Feed
-            10 | 11 | 12 => {
+            10..=12 => {
                 self.cursor.y += 1;
                 if self.cursor.y >= self.rows {
                     self.scroll_up();

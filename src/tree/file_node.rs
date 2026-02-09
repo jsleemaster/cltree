@@ -18,6 +18,7 @@ impl FileNode {
         }
     }
 
+    #[allow(dead_code)]
     pub fn icon(&self) -> &'static str {
         if self.is_dir {
             "📁"
@@ -28,17 +29,18 @@ impl FileNode {
 
     pub fn expanded_icon(&self, expanded: bool) -> &'static str {
         if self.is_dir {
-            if expanded { "📂" } else { "📁" }
+            if expanded {
+                "📂"
+            } else {
+                "📁"
+            }
         } else {
             self.file_icon()
         }
     }
 
     fn file_icon(&self) -> &'static str {
-        let ext = self.path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+        let ext = self.path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         match ext.to_lowercase().as_str() {
             // Rust
@@ -96,6 +98,7 @@ impl FileNode {
         }
     }
 
+    #[allow(dead_code)]
     pub fn tree_prefix(&self, is_last: bool) -> String {
         if self.depth == 0 {
             return String::new();
