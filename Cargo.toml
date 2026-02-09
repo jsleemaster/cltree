@@ -13,7 +13,7 @@ categories = ["command-line-utilities", "development-tools"]
 [dependencies]
 # TUI framework
 ratatui = "0.29"
-crossterm = "0.28"
+crossterm = "0.29"
 
 # Async runtime
 tokio = { version = "1.42", features = ["full"] }
