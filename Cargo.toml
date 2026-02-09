@@ -19,7 +19,7 @@ crossterm = "0.29"
 tokio = { version = "1.42", features = ["full"] }
 
 # File system watching
-notify = "7.0"
+notify = "8.2"
 notify-debouncer-mini = "0.5"
 
 # File tree handling
