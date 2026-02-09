@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 use notify::RecursiveMode;
-use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer, DebouncedEventKind};
+use notify_debouncer_mini::{new_debouncer, DebounceEventResult, DebouncedEventKind, Debouncer};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -63,15 +63,21 @@ impl EventHandler {
         // Initialize file watcher if watch_path is provided
         let debouncer = watch_path.and_then(|path| {
             let fs_tx = tx.clone();
-            let mut debouncer = new_debouncer(Duration::from_millis(300), move |result: DebounceEventResult| {
-                if let Ok(events) = result {
-                    for fs_event in events {
-                        if matches!(fs_event.kind, DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous) {
-                            let _ = fs_tx.send(Event::FileChange(fs_event.path));
+            let mut debouncer = new_debouncer(
+                Duration::from_millis(300),
+                move |result: DebounceEventResult| {
+                    if let Ok(events) = result {
+                        for fs_event in events {
+                            if matches!(
+                                fs_event.kind,
+                                DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
+                            ) {
+                                let _ = fs_tx.send(Event::FileChange(fs_event.path));
+                            }
                         }
                     }
-                }
-            })
+                },
+            )
             .ok()?;
 
             debouncer
@@ -90,6 +96,9 @@ impl EventHandler {
     }
 
     pub async fn next(&mut self) -> Result<Event> {
-        self.rx.recv().await.ok_or_else(|| anyhow::anyhow!("Event channel closed"))
+        self.rx
+            .recv()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Event channel closed"))
     }
 }

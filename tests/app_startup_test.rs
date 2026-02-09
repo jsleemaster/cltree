@@ -25,22 +25,36 @@ fn test_file_tree_builds_correctly() {
         .sort_by_file_name(|a, b| a.cmp(b))
         .build();
 
-    let entries: Vec<PathBuf> = walker
-        .flatten()
-        .map(|e| e.into_path())
-        .collect();
+    let entries: Vec<PathBuf> = walker.flatten().map(|e| e.into_path()).collect();
 
     // Root + 3 files + 1 dir + 1 file in dir = 6
-    assert!(entries.len() >= 5, "Should find at least 5 entries, found {}", entries.len());
+    assert!(
+        entries.len() >= 5,
+        "Should find at least 5 entries, found {}",
+        entries.len()
+    );
 
-    let names: Vec<String> = entries.iter()
+    let names: Vec<String> = entries
+        .iter()
         .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
         .collect();
 
-    assert!(names.contains(&"src".to_string()), "Should contain 'src' dir");
-    assert!(names.contains(&"main.rs".to_string()), "Should contain 'main.rs'");
-    assert!(names.contains(&"Cargo.toml".to_string()), "Should contain 'Cargo.toml'");
-    assert!(names.contains(&"README.md".to_string()), "Should contain 'README.md'");
+    assert!(
+        names.contains(&"src".to_string()),
+        "Should contain 'src' dir"
+    );
+    assert!(
+        names.contains(&"main.rs".to_string()),
+        "Should contain 'main.rs'"
+    );
+    assert!(
+        names.contains(&"Cargo.toml".to_string()),
+        "Should contain 'Cargo.toml'"
+    );
+    assert!(
+        names.contains(&"README.md".to_string()),
+        "Should contain 'README.md'"
+    );
 
     println!("File tree entries: {:?}", names);
 }
@@ -50,7 +64,7 @@ fn test_file_tree_builds_correctly() {
 fn test_terminal_pane_handles_missing_claude() {
     // TerminalPane::new() should NOT panic even if claude is not installed
     // Since we can't import from binary crate, test the PTY logic directly
-    use portable_pty::{native_pty_system, PtySize, CommandBuilder};
+    use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 
     let pty_system = native_pty_system();
     let pty_result = pty_system.openpty(PtySize {
@@ -67,8 +81,14 @@ fn test_terminal_pane_handles_missing_claude() {
             let spawn_result = pty_pair.slave.spawn_command(cmd);
 
             // This should fail, not panic
-            assert!(spawn_result.is_err(), "Spawning non-existent command should fail");
-            println!("Correctly handled missing command: {:?}", spawn_result.err());
+            assert!(
+                spawn_result.is_err(),
+                "Spawning non-existent command should fail"
+            );
+            println!(
+                "Correctly handled missing command: {:?}",
+                spawn_result.err()
+            );
         }
         Err(e) => {
             // PTY creation failed (e.g., in CI environment without TTY)
@@ -80,11 +100,11 @@ fn test_terminal_pane_handles_missing_claude() {
 /// Test that the file watcher + tree refresh integration works
 #[tokio::test]
 async fn test_file_change_triggers_tree_refresh() {
-    use std::time::Duration;
-    use tokio::sync::mpsc;
+    use ignore::WalkBuilder;
     use notify::RecursiveMode;
     use notify_debouncer_mini::{new_debouncer, DebounceEventResult, DebouncedEventKind};
-    use ignore::WalkBuilder;
+    use std::time::Duration;
+    use tokio::sync::mpsc;
 
     let tmp_dir = tempfile::tempdir().expect("Failed to create temp dir");
     let root = tmp_dir.path().canonicalize().unwrap();
@@ -105,15 +125,22 @@ async fn test_file_change_triggers_tree_refresh() {
         move |result: DebounceEventResult| {
             if let Ok(events) = result {
                 for fs_event in events {
-                    if matches!(fs_event.kind, DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous) {
+                    if matches!(
+                        fs_event.kind,
+                        DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
+                    ) {
                         let _ = tx.send(fs_event.path);
                     }
                 }
             }
         },
-    ).unwrap();
+    )
+    .unwrap();
 
-    debouncer.watcher().watch(&root, RecursiveMode::Recursive).unwrap();
+    debouncer
+        .watcher()
+        .watch(&root, RecursiveMode::Recursive)
+        .unwrap();
 
     // Create new file (simulates Claude Code creating a file)
     fs::write(root.join("new_file.txt"), "created by claude").unwrap();
@@ -136,11 +163,15 @@ async fn test_file_change_triggers_tree_refresh() {
         refreshed_entries.len()
     );
 
-    let has_new_file = refreshed_entries.iter().any(|e| {
-        e.file_name().to_string_lossy() == "new_file.txt"
-    });
+    let has_new_file = refreshed_entries
+        .iter()
+        .any(|e| e.file_name().to_string_lossy() == "new_file.txt");
     assert!(has_new_file, "Refreshed tree should contain 'new_file.txt'");
 
     println!("File watching + tree refresh integration: OK");
-    println!("  Initial entries: {}, After creation: {}", initial_count, refreshed_entries.len());
+    println!(
+        "  Initial entries: {}, After creation: {}",
+        initial_count,
+        refreshed_entries.len()
+    );
 }

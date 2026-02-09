@@ -11,7 +11,10 @@ use notify_debouncer_mini::{new_debouncer, DebounceEventResult, DebouncedEventKi
 async fn test_file_watcher_detects_creation() {
     let tmp_dir = tempfile::tempdir().expect("Failed to create temp dir");
     // Canonicalize to resolve symlinks (e.g. /var -> /private/var on macOS)
-    let watch_path = tmp_dir.path().canonicalize().expect("Failed to canonicalize");
+    let watch_path = tmp_dir
+        .path()
+        .canonicalize()
+        .expect("Failed to canonicalize");
 
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
 
@@ -63,7 +66,10 @@ async fn test_file_watcher_detects_creation() {
 #[tokio::test]
 async fn test_file_watcher_detects_deletion() {
     let tmp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-    let watch_path = tmp_dir.path().canonicalize().expect("Failed to canonicalize");
+    let watch_path = tmp_dir
+        .path()
+        .canonicalize()
+        .expect("Failed to canonicalize");
 
     // Create file before starting watcher
     let test_file = watch_path.join("to_delete.txt");
@@ -112,7 +118,10 @@ async fn test_file_watcher_detects_deletion() {
 #[tokio::test]
 async fn test_file_watcher_recursive() {
     let tmp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-    let watch_path = tmp_dir.path().canonicalize().expect("Failed to canonicalize");
+    let watch_path = tmp_dir
+        .path()
+        .canonicalize()
+        .expect("Failed to canonicalize");
     let sub_dir = watch_path.join("subdir");
     fs::create_dir(&sub_dir).expect("Failed to create subdir");
 

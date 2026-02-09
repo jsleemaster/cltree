@@ -1,8 +1,8 @@
 mod app;
-mod ui;
-mod tree;
-mod terminal;
 mod event;
+mod terminal;
+mod tree;
+mod ui;
 pub mod vterm;
 
 use anyhow::Result;
@@ -146,7 +146,13 @@ async fn main() -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     // Create app state
-    let mut app = App::new(args.path, args.tree_width, args.show_hidden, args.depth, args.claude_args)?;
+    let mut app = App::new(
+        args.path,
+        args.tree_width,
+        args.show_hidden,
+        args.depth,
+        args.claude_args,
+    )?;
 
     // Create event handler with file watching enabled for the tree root
     let watch_path = Some(app.tree.root_path().to_path_buf());

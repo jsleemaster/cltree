@@ -22,20 +22,21 @@ impl TerminalPane {
         let process_exited = Arc::new(AtomicBool::new(false));
 
         // Try to create PTY and spawn claude process
-        let (pty_pair, pty_writer) = match Self::try_spawn_claude(cwd, &vterm, claude_args, &process_exited) {
-            Ok((pair, writer)) => (Some(pair), writer),
-            Err(e) => {
-                // Store error message in vterm so user can see it
-                let msg = format!(
-                    "Failed to start Claude Code: {}\r\n\r\n\
+        let (pty_pair, pty_writer) =
+            match Self::try_spawn_claude(cwd, &vterm, claude_args, &process_exited) {
+                Ok((pair, writer)) => (Some(pair), writer),
+                Err(e) => {
+                    // Store error message in vterm so user can see it
+                    let msg = format!(
+                        "Failed to start Claude Code: {}\r\n\r\n\
                      Make sure 'claude' CLI is installed and in your PATH.\r\n\
                      Install: npm install -g @anthropic-ai/claude-code\r\n",
-                    e
-                );
-                vterm.lock().unwrap().feed(msg.as_bytes());
-                (None, None)
-            }
-        };
+                        e
+                    );
+                    vterm.lock().unwrap().feed(msg.as_bytes());
+                    (None, None)
+                }
+            };
 
         Ok(Self {
             pty_pair,

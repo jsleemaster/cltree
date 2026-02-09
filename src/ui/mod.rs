@@ -40,7 +40,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     frame.render_widget(terminal_block, terminal_area);
 
     // Resize PTY to match terminal area
-    app.terminal.resize(terminal_inner.width, terminal_inner.height);
+    app.terminal
+        .resize(terminal_inner.width, terminal_inner.height);
 
     let terminal_widget = TerminalWidget::new(&app.terminal);
     frame.render_widget(terminal_widget, terminal_inner);
@@ -48,18 +49,20 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     // File tree pane (right side)
     let tree_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(3),
-            Constraint::Length(1),
-        ])
+        .constraints([Constraint::Min(3), Constraint::Length(1)])
         .split(chunks[1]);
 
     let tree_area = tree_chunks[0];
     let status_area = tree_chunks[1];
 
-    let tree_title = format!(" 📂 {} ", app.tree.root_path().file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| app.tree.root_path().to_string_lossy().to_string()));
+    let tree_title = format!(
+        " 📂 {} ",
+        app.tree
+            .root_path()
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| app.tree.root_path().to_string_lossy().to_string())
+    );
 
     let tree_block = Block::default()
         .title(tree_title)
@@ -111,8 +114,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Style::default().fg(Color::DarkGray)
     };
 
-    let status = Paragraph::new(status_content)
-        .style(status_style);
+    let status = Paragraph::new(status_content).style(status_style);
     frame.render_widget(status, status_area);
 
     // Help popup
