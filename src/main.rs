@@ -145,6 +145,9 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    // Create PTY output notification channel
+    let (pty_tx, pty_rx) = tokio::sync::mpsc::unbounded_channel();
+
     // Create app state
     let mut app = App::new(
         args.path,
@@ -152,11 +155,12 @@ async fn main() -> Result<()> {
         args.show_hidden,
         args.depth,
         args.claude_args,
+        pty_tx,
     )?;
 
     // Create event handler with file watching enabled for the tree root
     let watch_path = Some(app.tree.root_path().to_path_buf());
-    let event_handler = EventHandler::new(250, watch_path);
+    let event_handler = EventHandler::new(200, watch_path, pty_rx);
 
     // Run the app
     let result = run_app(&mut terminal, &mut app, event_handler).await;
@@ -207,6 +211,9 @@ async fn run_app(
             }
             event::Event::FileChange(path) => {
                 app.handle_file_change(path);
+            }
+            event::Event::PtyOutput => {
+                // vterm already updated by the reader thread; just redraw on next loop iteration
             }
         }
     }

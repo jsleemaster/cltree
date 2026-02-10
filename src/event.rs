@@ -1,5 +1,6 @@
 use anyhow::Result;
-use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
+use crossterm::event::{EventStream, KeyEvent, MouseEvent};
+use futures::StreamExt;
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, DebouncedEventKind, Debouncer};
 use std::path::PathBuf;
@@ -13,48 +14,76 @@ pub enum Event {
     Mouse(MouseEvent),
     Resize(u16, u16),
     FileChange(PathBuf),
+    PtyOutput,
 }
 
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<Event>,
-    _tx: mpsc::UnboundedSender<Event>,
     // Keep the debouncer alive to prevent it from being dropped
     _debouncer: Option<Debouncer<notify::RecommendedWatcher>>,
 }
 
 impl EventHandler {
-    pub fn new(tick_rate: u64, watch_path: Option<PathBuf>) -> Self {
+    pub fn new(
+        tick_rate: u64,
+        watch_path: Option<PathBuf>,
+        pty_rx: mpsc::UnboundedReceiver<()>,
+    ) -> Self {
         let tick_rate = Duration::from_millis(tick_rate);
         let (tx, rx) = mpsc::unbounded_channel();
-        let tx_clone = tx.clone();
 
-        // Spawn event polling task
+        // Spawn async event loop using EventStream + select!
+        let tx_clone = tx.clone();
         tokio::spawn(async move {
+            let mut crossterm_events = EventStream::new();
+            let mut pty_rx = pty_rx;
+            let mut tick_interval = tokio::time::interval(tick_rate);
+
             loop {
-                if event::poll(tick_rate).unwrap_or(false) {
-                    match event::read() {
-                        Ok(CrosstermEvent::Key(key)) => {
-                            if tx_clone.send(Event::Key(key)).is_err() {
-                                break;
+                tokio::select! {
+                    // Crossterm terminal events (key, mouse, resize)
+                    maybe_event = crossterm_events.next() => {
+                        match maybe_event {
+                            Some(Ok(crossterm::event::Event::Key(key))) => {
+                                if tx_clone.send(Event::Key(key)).is_err() {
+                                    break;
+                                }
                             }
-                        }
-                        Ok(CrosstermEvent::Mouse(mouse)) => {
-                            if tx_clone.send(Event::Mouse(mouse)).is_err() {
-                                break;
+                            Some(Ok(crossterm::event::Event::Mouse(mouse))) => {
+                                if tx_clone.send(Event::Mouse(mouse)).is_err() {
+                                    break;
+                                }
                             }
-                        }
-                        Ok(CrosstermEvent::Resize(width, height)) => {
-                            if tx_clone.send(Event::Resize(width, height)).is_err() {
-                                break;
+                            Some(Ok(crossterm::event::Event::Resize(w, h))) => {
+                                if tx_clone.send(Event::Resize(w, h)).is_err() {
+                                    break;
+                                }
                             }
+                            Some(Ok(_)) => {}
+                            Some(Err(_)) => break,
+                            None => break,
                         }
-                        Ok(_) => {}
-                        Err(_) => break,
                     }
-                } else {
-                    // Send tick event
-                    if tx_clone.send(Event::Tick).is_err() {
-                        break;
+                    // PTY output notification — triggers immediate redraw
+                    maybe_pty = pty_rx.recv() => {
+                        match maybe_pty {
+                            Some(()) => {
+                                // Drain any additional pending notifications to coalesce redraws
+                                while pty_rx.try_recv().is_ok() {}
+                                if tx_clone.send(Event::PtyOutput).is_err() {
+                                    break;
+                                }
+                            }
+                            None => {
+                                // PTY channel closed (process exited), keep running for other events
+                            }
+                        }
+                    }
+                    // Periodic tick for housekeeping (process exit check, etc.)
+                    _ = tick_interval.tick() => {
+                        if tx_clone.send(Event::Tick).is_err() {
+                            break;
+                        }
                     }
                 }
             }
@@ -90,7 +119,6 @@ impl EventHandler {
 
         Self {
             rx,
-            _tx: tx,
             _debouncer: debouncer,
         }
     }

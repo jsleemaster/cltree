@@ -21,80 +21,77 @@ impl FileNode {
     #[allow(dead_code)]
     pub fn icon(&self) -> &'static str {
         if self.is_dir {
-            "📁"
+            "▸ "
         } else {
-            self.file_icon()
+            "· "
         }
     }
 
     pub fn expanded_icon(&self, expanded: bool) -> &'static str {
         if self.is_dir {
             if expanded {
-                "📂"
+                "▾ "
             } else {
-                "📁"
+                "▸ "
             }
         } else {
-            self.file_icon()
+            "· "
         }
     }
 
-    fn file_icon(&self) -> &'static str {
+    pub fn display_color(&self) -> ratatui::style::Color {
+        use ratatui::style::Color;
+        if self.is_dir {
+            Color::Rgb(209, 164, 73)
+        } else {
+            self.file_type_color()
+        }
+    }
+
+    fn file_type_color(&self) -> ratatui::style::Color {
+        use ratatui::style::Color;
         let ext = self.path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         match ext.to_lowercase().as_str() {
             // Rust
-            "rs" => "🦀",
+            "rs" => Color::Rgb(255, 150, 50),
             // JavaScript/TypeScript
-            "js" | "mjs" | "cjs" => "📜",
-            "ts" | "mts" | "cts" => "📘",
-            "jsx" | "tsx" => "⚛️",
-            // Web
-            "html" | "htm" => "🌐",
-            "css" | "scss" | "sass" | "less" => "🎨",
-            "vue" | "svelte" => "💚",
+            "js" | "mjs" | "cjs" => Color::LightYellow,
+            "ts" | "mts" | "cts" => Color::Rgb(50, 150, 255),
+            "jsx" | "tsx" => Color::Rgb(100, 200, 255),
             // Python
-            "py" | "pyw" | "pyi" => "🐍",
-            // Data
-            "json" => "📋",
-            "yaml" | "yml" => "📝",
-            "toml" => "⚙️",
-            "xml" => "📰",
-            "csv" => "📊",
-            "sql" => "🗃️",
+            "py" | "pyw" | "pyi" => Color::Rgb(80, 180, 80),
+            // Web
+            "html" | "htm" => Color::Rgb(230, 120, 50),
+            "css" | "scss" | "sass" | "less" => Color::Rgb(180, 100, 255),
+            "vue" | "svelte" => Color::LightGreen,
+            // Data/Config
+            "json" => Color::LightYellow,
+            "yaml" | "yml" | "toml" => Color::Rgb(180, 180, 180),
+            "xml" => Color::Rgb(200, 150, 50),
+            "sql" => Color::Rgb(200, 200, 50),
             // Docs
-            "md" | "markdown" => "📖",
-            "txt" => "📄",
-            "pdf" => "📕",
-            "doc" | "docx" => "📘",
-            // Config
-            "env" => "🔐",
-            "gitignore" | "dockerignore" => "🙈",
-            "lock" => "🔒",
+            "md" | "markdown" => Color::Rgb(100, 180, 255),
+            "txt" => Color::Rgb(180, 180, 180),
             // Shell
-            "sh" | "bash" | "zsh" | "fish" => "🐚",
-            "ps1" | "bat" | "cmd" => "💻",
-            // Images
-            "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "webp" => "🖼️",
+            "sh" | "bash" | "zsh" | "fish" => Color::LightGreen,
             // Go
-            "go" => "🐹",
+            "go" => Color::Cyan,
             // Java/Kotlin
-            "java" => "☕",
-            "kt" | "kts" => "🟣",
+            "java" => Color::Rgb(255, 100, 100),
+            "kt" | "kts" => Color::Rgb(200, 120, 255),
             // C/C++
-            "c" | "h" => "🔵",
-            "cpp" | "cc" | "cxx" | "hpp" => "🔷",
+            "c" | "h" => Color::Rgb(100, 150, 255),
+            "cpp" | "cc" | "cxx" | "hpp" => Color::Rgb(100, 150, 255),
             // Ruby
-            "rb" => "💎",
-            // PHP
-            "php" => "🐘",
-            // Swift
-            "swift" => "🦅",
-            // Misc
-            "zip" | "tar" | "gz" | "rar" | "7z" => "📦",
-            "log" => "📋",
-            "exe" | "dll" | "so" | "dylib" => "⚡",
-            _ => "📄",
+            "rb" => Color::LightRed,
+            // Config/Lock
+            "lock" => Color::DarkGray,
+            "env" | "gitignore" | "dockerignore" => Color::DarkGray,
+            // Images
+            "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "webp" => Color::LightMagenta,
+            // Default
+            _ => Color::Rgb(180, 180, 180),
         }
     }
 

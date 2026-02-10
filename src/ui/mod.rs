@@ -1,5 +1,4 @@
 mod file_tree_widget;
-mod help_popup;
 mod terminal_widget;
 
 use ratatui::{
@@ -7,9 +6,8 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use crate::app::{App, FocusedPane, InputMode};
+use crate::app::App;
 use file_tree_widget::FileTreeWidget;
-use help_popup::HelpPopup;
 use terminal_widget::TerminalWidget;
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
@@ -30,11 +28,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .title(" Claude Code ")
         .title_style(Style::default().fg(Color::Cyan).bold())
         .borders(Borders::ALL)
-        .border_style(if app.focused == FocusedPane::Terminal {
-            Style::default().fg(Color::Cyan)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        });
+        .border_style(Style::default().fg(Color::Cyan));
 
     let terminal_inner = terminal_block.inner(terminal_area);
     frame.render_widget(terminal_block, terminal_area);
@@ -46,17 +40,28 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let terminal_widget = TerminalWidget::new(&app.terminal);
     frame.render_widget(terminal_widget, terminal_inner);
 
-    // File tree pane (right side)
-    let tree_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(3), Constraint::Length(1)])
-        .split(chunks[1]);
+    // Set hardware blinking cursor position (terminal always focused)
+    {
+        let vterm = app.terminal.vterm().lock().unwrap();
+        let cursor = vterm.cursor();
+        if cursor.visible {
+            let cx =
+                terminal_inner.x + (cursor.x as u16).min(terminal_inner.width.saturating_sub(1));
+            let cy =
+                terminal_inner.y + (cursor.y as u16).min(terminal_inner.height.saturating_sub(1));
+            if cx < terminal_inner.x + terminal_inner.width
+                && cy < terminal_inner.y + terminal_inner.height
+            {
+                frame.set_cursor_position((cx, cy));
+            }
+        }
+    }
 
-    let tree_area = tree_chunks[0];
-    let status_area = tree_chunks[1];
+    // File tree pane (right side)
+    let tree_area = chunks[1];
 
     let tree_title = format!(
-        " 📂 {} ",
+        " {} ",
         app.tree
             .root_path()
             .file_name()
@@ -68,83 +73,47 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .title(tree_title)
         .title_style(Style::default().fg(Color::Yellow).bold())
         .borders(Borders::ALL)
-        .border_style(if app.focused == FocusedPane::Tree {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        });
+        .border_style(Style::default().fg(Color::DarkGray));
 
     let tree_inner = tree_block.inner(tree_area);
     frame.render_widget(tree_block, tree_area);
 
-    // Render file tree
-    let file_tree_widget = FileTreeWidget::new(&app.tree);
-    frame.render_stateful_widget(
-        file_tree_widget,
-        tree_inner,
-        &mut FileTreeWidgetState {
-            offset: app.tree.offset(),
-        },
-    );
-
-    // Update scroll offset
-    let visible_height = tree_inner.height as usize;
-    let selected = app.tree.selected();
-    let mut offset = app.tree.offset();
-
-    if selected >= offset + visible_height {
-        offset = selected - visible_height + 1;
-    } else if selected < offset {
-        offset = selected;
-    }
-    app.tree.set_offset(offset);
-
-    // Status bar / search input
-    let status_content = if app.input_mode == InputMode::Search {
-        format!("/{}", app.search_query)
-    } else if let Some(ref msg) = app.status_message {
-        msg.clone()
+    if app.tree_loading {
+        let loading =
+            Paragraph::new("  Scanning files...").style(Style::default().fg(Color::DarkGray));
+        frame.render_widget(loading, tree_inner);
     } else {
-        "Tab: switch pane | ?: help".to_string()
-    };
+        // Auto-scroll to keep CWD visible
+        let visible_height = tree_inner.height as usize;
+        let cwd = app.terminal.cwd();
+        let cwd_index = app
+            .tree
+            .nodes()
+            .iter()
+            .position(|n| n.is_dir && n.path == cwd);
 
-    let status_style = if app.input_mode == InputMode::Search {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default().fg(Color::DarkGray)
-    };
+        if let Some(idx) = cwd_index {
+            let mut offset = app.tree.offset();
+            if idx >= offset + visible_height {
+                offset = idx - visible_height + 1;
+            } else if idx < offset {
+                offset = idx;
+            }
+            app.tree.set_offset(offset);
+        }
 
-    let status = Paragraph::new(status_content).style(status_style);
-    frame.render_widget(status, status_area);
-
-    // Help popup
-    if app.show_help {
-        let help = HelpPopup::new();
-        let help_area = centered_rect(60, 70, size);
-        frame.render_widget(help, help_area);
+        // Render file tree
+        let file_tree_widget = FileTreeWidget::new(&app.tree, Some(app.terminal.cwd()));
+        frame.render_stateful_widget(
+            file_tree_widget,
+            tree_inner,
+            &mut FileTreeWidgetState {
+                offset: app.tree.offset(),
+            },
+        );
     }
 }
 
 pub struct FileTreeWidgetState {
     pub offset: usize,
-}
-
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
 }
