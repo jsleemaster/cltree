@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-02-10
+
+### Removed
+
+- Focus switching between panes (Tab key)
+- Interactive file tree navigation (j/k/g/G/h/l keys)
+- File search functionality (/)
+- Help popup (? / F1)
+- @path insertion on Enter
+- Directory cd on Enter
+
+### Added
+
+- CWD marker (●) showing Claude Code's current working directory in the file tree
+- OSC 7 escape sequence support for CWD detection
+- vterm buffer scanning as fallback CWD detection
+- Debounced tree refresh on CWD changes
+- Enhanced key handling — all keystrokes forwarded to terminal
+
+### Changed
+
+- File tree is now always fully expanded (read-only passive display)
+- All key input is passed directly to Claude Code terminal
+- Event loop rewritten with tokio select! for improved responsiveness
+
 ## [0.1.0] - 2025-02-05
 
 ### Added
@@ -26,5 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Command line options for path, tree width, hidden files, and depth
 - Help popup with `?` or `F1`
 
-[Unreleased]: https://github.com/jsleemaster/claude-explorer/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jsleemaster/claude-explorer/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jsleemaster/claude-explorer/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jsleemaster/claude-explorer/releases/tag/v0.1.0

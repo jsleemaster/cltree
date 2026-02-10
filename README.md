@@ -22,20 +22,19 @@ A terminal-based file explorer designed to work alongside Claude Code CLI. View 
 │                                             │ ├── 📖 README.md     │
 │                                             │ └── 📄 .gitignore    │
 │                                             │                      │
-│                                             │ Tab: switch | ?: help│
+│                                             │ ● src/ui             │
 └─────────────────────────────────────────────┴──────────────────────┘
 ```
 
 ## ✨ Features
 
 - **Split-pane TUI**: File tree on the right, Claude Code on the left
-- **Interactive file tree**: Navigate, expand/collapse directories
-- **Quick file reference**: Press Enter on a file to insert `@path` in Claude Code
-- **Directory navigation**: Press Enter on a directory to `cd` into it
-- **Search**: Find files by name with `/` search
+- **Passive file tree**: Always-expanded, read-only project structure display
+- **CWD tracking**: Highlights Claude Code's current working directory with a ● marker
+- **OSC 7 + vterm detection**: Automatically detects directory changes via escape sequences
 - **gitignore support**: Respects `.gitignore` patterns
 - **File icons**: Visual indicators for different file types
-- **Keyboard-driven**: Vim-style navigation
+- **Zero interference**: All keystrokes are forwarded directly to Claude Code
 
 ## 📦 Installation
 
@@ -85,31 +84,11 @@ claude-explorer --show-hidden
 
 ## ⌨️ Keyboard Shortcuts
 
-### Global
 | Key | Action |
 |-----|--------|
-| `Tab` | Switch between Tree and Terminal panes |
-| `Ctrl+T` | Focus Tree pane |
 | `Ctrl+Q` | Quit |
-| `F1` / `?` | Toggle help |
 
-### File Tree Pane
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Move down |
-| `k` / `↑` | Move up |
-| `g` / `Home` | Go to first |
-| `G` / `End` | Go to last |
-| `Enter` / `l` | Open/expand or insert path |
-| `h` / `←` | Collapse or go to parent |
-| `Space` | Toggle expand/collapse |
-| `/` | Start search |
-| `n` / `N` | Next/previous search result |
-| `.` | Toggle hidden files |
-| `r` / `F5` | Refresh tree |
-
-### Terminal Pane
-All keys are passed directly to Claude Code.
+All other keystrokes are passed directly to Claude Code.
 
 ## 🔧 Configuration
 
