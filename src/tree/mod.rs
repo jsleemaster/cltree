@@ -45,10 +45,6 @@ impl FileTree {
         self.offset = offset;
     }
 
-    pub fn is_expanded(&self, _path: &Path) -> bool {
-        true
-    }
-
     fn rebuild_visible_nodes(&mut self) -> Result<()> {
         self.nodes.clear();
         self.build_tree(&self.root.clone(), 0)?;
@@ -112,11 +108,5 @@ impl FileTree {
 
     pub fn refresh(&mut self) {
         let _ = self.rebuild_visible_nodes();
-    }
-
-    pub fn refresh_path(&mut self, _path: &Path) {
-        // For now, just do a full refresh
-        // Could be optimized to only refresh the affected subtree
-        self.refresh();
     }
 }

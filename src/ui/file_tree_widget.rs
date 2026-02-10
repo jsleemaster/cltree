@@ -41,7 +41,7 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
 
             // Build the line
             let indent = "  ".repeat(node.depth);
-            let icon = node.expanded_icon(self.tree.is_expanded(&node.path));
+            let icon = node.expanded_icon(true);
 
             // Check if this node is the CWD
             let is_cwd = self.cwd.is_some_and(|cwd| node.is_dir && node.path == cwd);

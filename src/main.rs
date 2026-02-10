@@ -206,9 +206,7 @@ async fn run_app(
             event::Event::Mouse(mouse_event) => {
                 app.handle_mouse(mouse_event);
             }
-            event::Event::Resize(width, height) => {
-                app.handle_resize(width, height);
-            }
+            event::Event::Resize(_width, _height) => {}
             event::Event::FileChange(path) => {
                 app.handle_file_change(path);
             }

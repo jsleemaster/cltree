@@ -18,15 +18,6 @@ impl FileNode {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn icon(&self) -> &'static str {
-        if self.is_dir {
-            "▸ "
-        } else {
-            "· "
-        }
-    }
-
     pub fn expanded_icon(&self, expanded: bool) -> &'static str {
         if self.is_dir {
             if expanded {
@@ -93,25 +84,5 @@ impl FileNode {
             // Default
             _ => Color::Rgb(180, 180, 180),
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn tree_prefix(&self, is_last: bool) -> String {
-        if self.depth == 0 {
-            return String::new();
-        }
-
-        let mut prefix = String::new();
-        for _ in 0..self.depth.saturating_sub(1) {
-            prefix.push_str("│   ");
-        }
-
-        if is_last {
-            prefix.push_str("└── ");
-        } else {
-            prefix.push_str("├── ");
-        }
-
-        prefix
     }
 }

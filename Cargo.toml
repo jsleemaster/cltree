@@ -24,7 +24,6 @@ notify-debouncer-mini = "0.7"
 
 # File tree handling
 ignore = "0.4"              # gitignore support
-walkdir = "2.5"
 
 # PTY for terminal embedding
 portable-pty = "0.9"
@@ -32,9 +31,7 @@ portable-pty = "0.9"
 # Utilities
 futures = "0.3"
 anyhow = "1.0"
-thiserror = "2.0"
 dirs = "5.0"
-clap = { version = "4.5", features = ["derive"] }
 unicode-width = "0.2"
 vte = "0.15"
 

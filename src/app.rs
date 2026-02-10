@@ -10,8 +10,6 @@ pub struct App {
     pub tree: FileTree,
     pub terminal: TerminalPane,
     pub tree_width_percent: u16,
-    #[allow(dead_code)]
-    pub should_quit: bool,
     pub tree_loading: bool,
 }
 
@@ -30,7 +28,6 @@ impl App {
             tree: FileTree::new(&canonical_path, show_hidden, max_depth)?,
             terminal: TerminalPane::new(&canonical_path, &claude_args, pty_tx)?,
             tree_width_percent: tree_width.clamp(10, 50),
-            should_quit: false,
             tree_loading: true,
         })
     }
@@ -69,14 +66,10 @@ impl App {
         }
     }
 
-    pub fn handle_resize(&mut self, _width: u16, _height: u16) {
-        // Handle terminal resize if needed
-    }
-
     pub fn handle_file_change(&mut self, path: PathBuf) {
         // Refresh tree if file changed
         if path.starts_with(self.tree.root_path()) {
-            self.tree.refresh_path(&path);
+            self.tree.refresh();
         }
     }
 }
