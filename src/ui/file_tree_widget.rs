@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use ratatui::{prelude::*, widgets::StatefulWidget};
 
 use super::FileTreeWidgetState;
@@ -5,11 +7,12 @@ use crate::tree::FileTree;
 
 pub struct FileTreeWidget<'a> {
     tree: &'a FileTree,
+    cwd: Option<&'a Path>,
 }
 
 impl<'a> FileTreeWidget<'a> {
-    pub fn new(tree: &'a FileTree) -> Self {
-        Self { tree }
+    pub fn new(tree: &'a FileTree, cwd: Option<&'a Path>) -> Self {
+        Self { tree, cwd }
     }
 }
 
@@ -18,7 +21,6 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let nodes = self.tree.nodes();
-        let selected = self.tree.selected();
         let visible_height = area.height as usize;
 
         // Calculate visible range
@@ -40,25 +42,37 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
             // Build the line
             let indent = "  ".repeat(node.depth);
             let icon = node.expanded_icon(self.tree.is_expanded(&node.path));
-            let line = format!("{}{} {}", indent, icon, node.name);
 
-            // Determine style
-            let style = if idx == selected {
-                Style::default()
-                    .bg(Color::Rgb(60, 60, 80))
-                    .fg(Color::White)
-                    .bold()
-            } else if node.is_dir {
-                Style::default().fg(Color::LightCyan).bold()
+            // Check if this node is the CWD
+            let is_cwd = self.cwd.is_some_and(|cwd| node.is_dir && node.path == cwd);
+
+            // Build display line with CWD marker
+            let line = if is_cwd {
+                format!("{}{}● {}", indent, icon, node.name)
             } else {
-                Style::default().fg(Color::White)
+                format!("{}{} {}", indent, icon, node.name)
             };
 
-            // Clear background for selected item
-            if idx == selected {
+            // Determine style
+            let style = if is_cwd {
+                Style::default()
+                    .bg(Color::Rgb(80, 70, 30))
+                    .fg(Color::Rgb(255, 220, 100))
+                    .bold()
+            } else {
+                let color = node.display_color();
+                let mut s = Style::default().fg(color);
+                if node.is_dir {
+                    s = s.bold();
+                }
+                s
+            };
+
+            // Clear background for CWD item
+            if is_cwd {
                 for x in area.x..area.x + area.width {
                     if let Some(cell) = buf.cell_mut((x, y)) {
-                        cell.set_bg(Color::Rgb(60, 60, 80));
+                        cell.set_bg(Color::Rgb(80, 70, 30));
                     }
                 }
             }

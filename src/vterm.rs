@@ -1,16 +1,17 @@
 use ratatui::prelude::*;
+use std::path::{Path, PathBuf};
 use vte::{Params, Perform};
 
 #[derive(Clone, Debug)]
 pub struct Cell {
-    pub ch: char,
+    pub ch: String,
     pub style: Style,
 }
 
 impl Default for Cell {
     fn default() -> Self {
         Self {
-            ch: ' ',
+            ch: " ".to_string(),
             style: Style::default(),
         }
     }
@@ -47,6 +48,13 @@ pub struct VirtualTerminal {
     saved_scrollback: Option<Vec<Vec<Cell>>>,
     saved_main_cursor: Option<CursorState>,
     parser: Option<vte::Parser>,
+    // Scroll region (DECSTBM): top..bottom (0-indexed, bottom is exclusive)
+    scroll_top: usize,
+    scroll_bottom: usize,
+    // Response queue for DSR/CPR etc. — caller must flush these to PTY
+    response_queue: Vec<Vec<u8>>,
+    // CWD reported via OSC 7
+    reported_cwd: Option<PathBuf>,
 }
 
 const MAX_SCROLLBACK: usize = 1000;
@@ -66,7 +74,21 @@ impl VirtualTerminal {
             saved_scrollback: None,
             saved_main_cursor: None,
             parser: Some(vte::Parser::new()),
+            scroll_top: 0,
+            scroll_bottom: rows,
+            response_queue: Vec::new(),
+            reported_cwd: None,
         }
+    }
+
+    /// Take pending responses (e.g. DSR/CPR replies) to send back to the PTY
+    pub fn take_responses(&mut self) -> Vec<Vec<u8>> {
+        std::mem::take(&mut self.response_queue)
+    }
+
+    /// Get the CWD reported via OSC 7
+    pub fn reported_cwd(&self) -> Option<&Path> {
+        self.reported_cwd.as_deref()
     }
 
     fn make_grid(cols: usize, rows: usize) -> Vec<Vec<Cell>> {
@@ -105,6 +127,10 @@ impl VirtualTerminal {
         self.cols = cols;
         self.rows = rows;
 
+        // Reset scroll region to full screen
+        self.scroll_top = 0;
+        self.scroll_bottom = rows;
+
         // Clamp cursor
         self.cursor.x = self.cursor.x.min(cols.saturating_sub(1));
         self.cursor.y = self.cursor.y.min(rows.saturating_sub(1));
@@ -134,33 +160,76 @@ impl VirtualTerminal {
         self.cols
     }
 
+    /// Get the text content of a specific grid row (0-indexed)
+    pub fn row_text(&self, row: usize) -> String {
+        if row >= self.rows {
+            return String::new();
+        }
+        self.grid[row]
+            .iter()
+            .map(|c| {
+                if c.ch.is_empty() || c.ch == " " {
+                    " ".to_string()
+                } else {
+                    c.ch.clone()
+                }
+            })
+            .collect::<String>()
+            .trim_end()
+            .to_string()
+    }
+
     pub fn rows(&self) -> usize {
         self.rows
     }
 
-    /// Scroll the entire screen up by one line, pushing the top line into scrollback
+    /// Scroll within the scroll region up by one line
     fn scroll_up(&mut self) {
-        if self.rows == 0 {
+        if self.rows == 0 || self.scroll_top >= self.scroll_bottom {
             return;
         }
-        let top_row = self.grid.remove(0);
-        self.scrollback.push(top_row);
-        if self.scrollback.len() > MAX_SCROLLBACK {
-            self.scrollback.remove(0);
+        let removed = self.grid.remove(self.scroll_top);
+        // Only push to scrollback if scrolling from the very top of the screen
+        if self.scroll_top == 0 {
+            self.scrollback.push(removed);
+            if self.scrollback.len() > MAX_SCROLLBACK {
+                self.scrollback.remove(0);
+            }
         }
-        self.grid.push(self.make_row());
+        // Insert blank row at the bottom of the scroll region
+        let insert_pos = (self.scroll_bottom - 1).min(self.grid.len());
+        self.grid.insert(insert_pos, self.make_row());
     }
 
-    /// Scroll the entire screen down by one line (reverse index)
+    /// Scroll within the scroll region down by one line (reverse index)
     fn scroll_down(&mut self) {
-        if self.rows == 0 {
+        if self.rows == 0 || self.scroll_top >= self.scroll_bottom {
             return;
         }
-        self.grid.pop();
-        self.grid.insert(0, self.make_row());
+        // Remove the bottom line of the scroll region
+        let remove_pos = (self.scroll_bottom - 1).min(self.grid.len().saturating_sub(1));
+        self.grid.remove(remove_pos);
+        // Insert blank row at the top of the scroll region
+        self.grid.insert(self.scroll_top, self.make_row());
     }
 
     fn put_char(&mut self, ch: char) {
+        // Combining/zero-width characters merge into previous cell
+        let char_width = unicode_width::UnicodeWidthChar::width(ch);
+        if char_width == Some(0) || char_width.is_none() {
+            if self.cursor.x > 0 && self.cursor.y < self.rows {
+                let prev_x = self.cursor.x - 1;
+                // If previous cell is a continuation cell (empty string from wide char),
+                // merge into the cell before it instead
+                if self.grid[self.cursor.y][prev_x].ch.is_empty() && prev_x > 0 {
+                    self.grid[self.cursor.y][prev_x - 1].ch.push(ch);
+                } else {
+                    self.grid[self.cursor.y][prev_x].ch.push(ch);
+                }
+            }
+            return; // No cursor advance for zero-width characters
+        }
+
         if self.cursor.x >= self.cols {
             // Line wrap
             self.cursor.x = 0;
@@ -173,7 +242,7 @@ impl VirtualTerminal {
 
         if self.cursor.y < self.rows && self.cursor.x < self.cols {
             self.grid[self.cursor.y][self.cursor.x] = Cell {
-                ch,
+                ch: ch.to_string(),
                 style: self.current_style,
             };
         }
@@ -181,11 +250,11 @@ impl VirtualTerminal {
         self.cursor.x += 1;
 
         // Handle wide characters
-        let char_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
-        if char_width == 2 && self.cursor.x < self.cols {
-            // Mark next cell as continuation (space with same style)
+        let w = char_width.unwrap_or(1);
+        if w == 2 && self.cursor.x < self.cols {
+            // Mark next cell as continuation (empty string)
             self.grid[self.cursor.y][self.cursor.x] = Cell {
-                ch: ' ',
+                ch: String::new(),
                 style: self.current_style,
             };
             self.cursor.x += 1;
@@ -362,21 +431,26 @@ impl VirtualTerminal {
     }
 
     fn insert_lines(&mut self, count: usize) {
+        let bottom = self.scroll_bottom.min(self.grid.len());
         for _ in 0..count {
-            if self.cursor.y < self.rows {
-                if self.rows > 0 {
-                    self.grid.pop();
-                }
+            if self.cursor.y >= self.scroll_top && self.cursor.y < bottom && bottom > 0 {
+                // Remove bottom line of scroll region
+                let remove_pos = (bottom - 1).min(self.grid.len().saturating_sub(1));
+                self.grid.remove(remove_pos);
+                // Insert blank line at cursor
                 self.grid.insert(self.cursor.y, self.make_row());
             }
         }
     }
 
     fn delete_lines(&mut self, count: usize) {
+        let bottom = self.scroll_bottom.min(self.grid.len());
         for _ in 0..count {
-            if self.cursor.y < self.rows {
+            if self.cursor.y >= self.scroll_top && self.cursor.y < bottom {
                 self.grid.remove(self.cursor.y);
-                self.grid.push(self.make_row());
+                // Insert blank line at bottom of scroll region
+                let insert_pos = (bottom - 1).min(self.grid.len());
+                self.grid.insert(insert_pos, self.make_row());
             }
         }
     }
@@ -441,6 +515,24 @@ impl VirtualTerminal {
     }
 }
 
+fn percent_decode(input: &str) -> String {
+    let mut result = Vec::new();
+    let bytes = input.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(val) = u8::from_str_radix(&input[i + 1..i + 3], 16) {
+                result.push(val);
+                i += 3;
+                continue;
+            }
+        }
+        result.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&result).into_owned()
+}
+
 impl Perform for VirtualTerminal {
     fn print(&mut self, c: char) {
         self.put_char(c);
@@ -461,10 +553,11 @@ impl Perform for VirtualTerminal {
             }
             // Line Feed / Vertical Tab / Form Feed
             10..=12 => {
-                self.cursor.y += 1;
-                if self.cursor.y >= self.rows {
+                if self.cursor.y + 1 >= self.scroll_bottom {
+                    // At the bottom of scroll region — scroll the region up
                     self.scroll_up();
-                    self.cursor.y = self.rows - 1;
+                } else {
+                    self.cursor.y += 1;
                 }
             }
             // Carriage Return
@@ -487,8 +580,25 @@ impl Perform for VirtualTerminal {
         // End of DCS sequence
     }
 
-    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
-        // OSC sequences (window title, etc.) - we can ignore these
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+        // OSC 7: Current working directory reporting
+        // Format: OSC 7 ; file://hostname/path ST
+        if let Some(first) = params.first() {
+            if *first == b"7" {
+                if let Some(uri) = params.get(1) {
+                    if let Ok(uri_str) = std::str::from_utf8(uri) {
+                        // Strip "file://hostname" prefix
+                        if let Some(path_str) = uri_str
+                            .strip_prefix("file://")
+                            .and_then(|s| s.find('/').map(|i| &s[i..]))
+                        {
+                            let decoded = percent_decode(path_str);
+                            self.reported_cwd = Some(PathBuf::from(decoded));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], _ignore: bool, action: char) {
@@ -608,7 +718,7 @@ impl Perform for VirtualTerminal {
                                 self.cursor.visible = set;
                             }
                             1049 => {
-                                // Alternate screen buffer
+                                // Alternate screen buffer (with save/restore cursor)
                                 if set {
                                     self.enter_alternate_screen();
                                 } else {
@@ -622,6 +732,14 @@ impl Perform for VirtualTerminal {
                                 } else {
                                     self.leave_alternate_screen();
                                 }
+                            }
+                            // Modes we acknowledge but don't need special handling for:
+                            // 1 = DECCKM (cursor key mode), 7 = DECAWM (auto-wrap),
+                            // 12 = blinking cursor, 1000/1002/1003/1006 = mouse modes,
+                            // 2004 = bracketed paste
+                            1 | 7 | 12 | 1000 | 1002 | 1003 | 1006 | 2004 => {
+                                // Silently accept — these affect input handling,
+                                // not our grid rendering
                             }
                             _ => {}
                         }
@@ -637,8 +755,34 @@ impl Perform for VirtualTerminal {
                     self.cursor = saved.clone();
                 }
             }
-            // DSR - Device Status Report (we ignore query requests)
-            'n' => {}
+            // DECSTBM - Set Scrolling Region (top;bottom)
+            'r' => {
+                if intermediates.is_empty() {
+                    let top = p.first().copied().unwrap_or(1).max(1) as usize - 1;
+                    let bottom = p.get(1).copied().unwrap_or(self.rows as u16) as usize;
+                    self.scroll_top = top.min(self.rows);
+                    self.scroll_bottom = bottom.min(self.rows).max(self.scroll_top + 1);
+                    // DECSTBM resets cursor to home
+                    self.cursor.x = 0;
+                    self.cursor.y = 0;
+                }
+            }
+            // DSR - Device Status Report
+            'n' => {
+                let code = p.first().copied().unwrap_or(0);
+                match code {
+                    5 => {
+                        // Status report — respond "OK"
+                        self.response_queue.push(b"\x1b[0n".to_vec());
+                    }
+                    6 => {
+                        // CPR — Cursor Position Report (1-indexed)
+                        let response = format!("\x1b[{};{}R", self.cursor.y + 1, self.cursor.x + 1);
+                        self.response_queue.push(response.into_bytes());
+                    }
+                    _ => {}
+                }
+            }
             // SGR-Mouse, etc. - ignore
             _ => {}
         }
@@ -646,17 +790,17 @@ impl Perform for VirtualTerminal {
 
     fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
         match byte {
-            // IND - Index (move down, scroll if at bottom)
+            // IND - Index (move down, scroll if at bottom of scroll region)
             b'D' => {
-                self.cursor.y += 1;
-                if self.cursor.y >= self.rows {
+                if self.cursor.y + 1 >= self.scroll_bottom {
                     self.scroll_up();
-                    self.cursor.y = self.rows - 1;
+                } else {
+                    self.cursor.y += 1;
                 }
             }
-            // RI - Reverse Index (move up, scroll if at top)
+            // RI - Reverse Index (move up, scroll if at top of scroll region)
             b'M' => {
-                if self.cursor.y == 0 {
+                if self.cursor.y <= self.scroll_top {
                     self.scroll_down();
                 } else {
                     self.cursor.y -= 1;
@@ -674,8 +818,10 @@ impl Perform for VirtualTerminal {
             }
             // RIS - Full Reset
             b'c' => {
+                let cols = self.cols;
+                let rows = self.rows;
                 let parser = self.parser.take();
-                *self = Self::new(self.cols, self.rows);
+                *self = Self::new(cols, rows);
                 self.parser = parser;
             }
             _ => {}
@@ -691,11 +837,11 @@ mod tests {
     fn test_basic_print() {
         let mut vt = VirtualTerminal::new(10, 5);
         vt.feed(b"Hello");
-        assert_eq!(vt.grid[0][0].ch, 'H');
-        assert_eq!(vt.grid[0][1].ch, 'e');
-        assert_eq!(vt.grid[0][2].ch, 'l');
-        assert_eq!(vt.grid[0][3].ch, 'l');
-        assert_eq!(vt.grid[0][4].ch, 'o');
+        assert_eq!(vt.grid[0][0].ch, "H");
+        assert_eq!(vt.grid[0][1].ch, "e");
+        assert_eq!(vt.grid[0][2].ch, "l");
+        assert_eq!(vt.grid[0][3].ch, "l");
+        assert_eq!(vt.grid[0][4].ch, "o");
         assert_eq!(vt.cursor.x, 5);
         assert_eq!(vt.cursor.y, 0);
     }
@@ -704,20 +850,20 @@ mod tests {
     fn test_newline() {
         let mut vt = VirtualTerminal::new(10, 5);
         vt.feed(b"AB\nCD");
-        assert_eq!(vt.grid[0][0].ch, 'A');
-        assert_eq!(vt.grid[0][1].ch, 'B');
-        assert_eq!(vt.grid[1][2].ch, 'C'); // LF moves down but not to col 0
-        assert_eq!(vt.grid[1][3].ch, 'D');
+        assert_eq!(vt.grid[0][0].ch, "A");
+        assert_eq!(vt.grid[0][1].ch, "B");
+        assert_eq!(vt.grid[1][2].ch, "C"); // LF moves down but not to col 0
+        assert_eq!(vt.grid[1][3].ch, "D");
     }
 
     #[test]
     fn test_crlf() {
         let mut vt = VirtualTerminal::new(10, 5);
         vt.feed(b"AB\r\nCD");
-        assert_eq!(vt.grid[0][0].ch, 'A');
-        assert_eq!(vt.grid[0][1].ch, 'B');
-        assert_eq!(vt.grid[1][0].ch, 'C');
-        assert_eq!(vt.grid[1][1].ch, 'D');
+        assert_eq!(vt.grid[0][0].ch, "A");
+        assert_eq!(vt.grid[0][1].ch, "B");
+        assert_eq!(vt.grid[1][0].ch, "C");
+        assert_eq!(vt.grid[1][1].ch, "D");
     }
 
     #[test]
@@ -731,7 +877,7 @@ mod tests {
         // Cursor up 1
         vt.feed(b"\x1b[AX");
         assert_eq!(vt.cursor.y, 1);
-        assert_eq!(vt.grid[1][4].ch, 'X');
+        assert_eq!(vt.grid[1][4].ch, "X");
     }
 
     #[test]
@@ -746,12 +892,12 @@ mod tests {
         vt.feed(b"\x1b[0J");
 
         // Row 0 should be intact
-        assert_eq!(vt.grid[0][0].ch, 'A');
+        assert_eq!(vt.grid[0][0].ch, "A");
         // Row 1, cols 0-3 should be intact, 4+ cleared
-        assert_eq!(vt.grid[1][3].ch, 'B');
-        assert_eq!(vt.grid[1][4].ch, ' ');
+        assert_eq!(vt.grid[1][3].ch, "B");
+        assert_eq!(vt.grid[1][4].ch, " ");
         // Row 2 should be cleared
-        assert_eq!(vt.grid[2][0].ch, ' ');
+        assert_eq!(vt.grid[2][0].ch, " ");
     }
 
     #[test]
@@ -760,9 +906,9 @@ mod tests {
         vt.feed(b"ABCDEFGHIJ");
         // Move to col 5, erase from cursor to end of line
         vt.feed(b"\x1b[1;6H\x1b[0K");
-        assert_eq!(vt.grid[0][4].ch, 'E');
-        assert_eq!(vt.grid[0][5].ch, ' ');
-        assert_eq!(vt.grid[0][9].ch, ' ');
+        assert_eq!(vt.grid[0][4].ch, "E");
+        assert_eq!(vt.grid[0][5].ch, " ");
+        assert_eq!(vt.grid[0][9].ch, " ");
     }
 
     #[test]
@@ -770,12 +916,12 @@ mod tests {
         let mut vt = VirtualTerminal::new(20, 5);
         // Red foreground
         vt.feed(b"\x1b[31mR");
-        assert_eq!(vt.grid[0][0].ch, 'R');
+        assert_eq!(vt.grid[0][0].ch, "R");
         assert_eq!(vt.grid[0][0].style.fg, Some(Color::Red));
 
         // Reset
         vt.feed(b"\x1b[0mN");
-        assert_eq!(vt.grid[0][1].ch, 'N');
+        assert_eq!(vt.grid[0][1].ch, "N");
         assert_eq!(vt.grid[0][1].style, Style::default());
     }
 
@@ -785,20 +931,20 @@ mod tests {
         vt.feed(b"A\r\nB\r\nC\r\nD");
         // After 4 lines in a 3-row terminal, first line should be in scrollback
         assert_eq!(vt.scrollback.len(), 1);
-        assert_eq!(vt.scrollback[0][0].ch, 'A');
-        assert_eq!(vt.grid[0][0].ch, 'B');
-        assert_eq!(vt.grid[1][0].ch, 'C');
-        assert_eq!(vt.grid[2][0].ch, 'D');
+        assert_eq!(vt.scrollback[0][0].ch, "A");
+        assert_eq!(vt.grid[0][0].ch, "B");
+        assert_eq!(vt.grid[1][0].ch, "C");
+        assert_eq!(vt.grid[2][0].ch, "D");
     }
 
     #[test]
     fn test_line_wrap() {
         let mut vt = VirtualTerminal::new(5, 3);
         vt.feed(b"ABCDEFGH");
-        assert_eq!(vt.grid[0][0].ch, 'A');
-        assert_eq!(vt.grid[0][4].ch, 'E');
-        assert_eq!(vt.grid[1][0].ch, 'F');
-        assert_eq!(vt.grid[1][2].ch, 'H');
+        assert_eq!(vt.grid[0][0].ch, "A");
+        assert_eq!(vt.grid[0][4].ch, "E");
+        assert_eq!(vt.grid[1][0].ch, "F");
+        assert_eq!(vt.grid[1][2].ch, "H");
     }
 
     #[test]
@@ -808,13 +954,13 @@ mod tests {
 
         // Enter alternate screen
         vt.feed(b"\x1b[?1049h");
-        assert_eq!(vt.grid[0][0].ch, ' '); // Should be blank
+        assert_eq!(vt.grid[0][0].ch, " "); // Should be blank
         vt.feed(b"Alt screen");
 
         // Leave alternate screen
         vt.feed(b"\x1b[?1049l");
-        assert_eq!(vt.grid[0][0].ch, 'M');
-        assert_eq!(vt.grid[0][1].ch, 'a');
+        assert_eq!(vt.grid[0][0].ch, "M");
+        assert_eq!(vt.grid[0][1].ch, "a");
     }
 
     #[test]
@@ -824,8 +970,8 @@ mod tests {
         vt.resize(5, 3);
         assert_eq!(vt.cols, 5);
         assert_eq!(vt.rows, 3);
-        assert_eq!(vt.grid[0][0].ch, 'H');
-        assert_eq!(vt.grid[0][4].ch, 'o');
+        assert_eq!(vt.grid[0][0].ch, "H");
+        assert_eq!(vt.grid[0][4].ch, "o");
     }
 
     #[test]
@@ -842,9 +988,9 @@ mod tests {
     fn test_tab() {
         let mut vt = VirtualTerminal::new(20, 5);
         vt.feed(b"A\tB");
-        assert_eq!(vt.grid[0][0].ch, 'A');
+        assert_eq!(vt.grid[0][0].ch, "A");
         assert_eq!(vt.cursor.x, 9); // 'B' at col 8, cursor at 9
-        assert_eq!(vt.grid[0][8].ch, 'B');
+        assert_eq!(vt.grid[0][8].ch, "B");
     }
 
     #[test]
@@ -852,19 +998,19 @@ mod tests {
         let mut vt = VirtualTerminal::new(10, 5);
         vt.feed(b"AB\x08C");
         // Backspace moves cursor back, 'C' overwrites 'B'
-        assert_eq!(vt.grid[0][0].ch, 'A');
-        assert_eq!(vt.grid[0][1].ch, 'C');
+        assert_eq!(vt.grid[0][0].ch, "A");
+        assert_eq!(vt.grid[0][1].ch, "C");
     }
 
     #[test]
     fn test_carriage_return_overwrite() {
         let mut vt = VirtualTerminal::new(10, 5);
         vt.feed(b"Hello\rWorld");
-        assert_eq!(vt.grid[0][0].ch, 'W');
-        assert_eq!(vt.grid[0][1].ch, 'o');
-        assert_eq!(vt.grid[0][2].ch, 'r');
-        assert_eq!(vt.grid[0][3].ch, 'l');
-        assert_eq!(vt.grid[0][4].ch, 'd');
+        assert_eq!(vt.grid[0][0].ch, "W");
+        assert_eq!(vt.grid[0][1].ch, "o");
+        assert_eq!(vt.grid[0][2].ch, "r");
+        assert_eq!(vt.grid[0][3].ch, "l");
+        assert_eq!(vt.grid[0][4].ch, "d");
     }
 
     #[test]
@@ -873,10 +1019,10 @@ mod tests {
         vt.feed(b"ABCDEF");
         // Move to col 2, delete 2 chars
         vt.feed(b"\x1b[1;3H\x1b[2P");
-        assert_eq!(vt.grid[0][0].ch, 'A');
-        assert_eq!(vt.grid[0][1].ch, 'B');
-        assert_eq!(vt.grid[0][2].ch, 'E');
-        assert_eq!(vt.grid[0][3].ch, 'F');
+        assert_eq!(vt.grid[0][0].ch, "A");
+        assert_eq!(vt.grid[0][1].ch, "B");
+        assert_eq!(vt.grid[0][2].ch, "E");
+        assert_eq!(vt.grid[0][3].ch, "F");
     }
 
     #[test]
@@ -885,8 +1031,8 @@ mod tests {
         vt.feed(b"A\r\nB\r\nC");
         // Move to row 2, insert 1 line
         vt.feed(b"\x1b[2;1H\x1b[1L");
-        assert_eq!(vt.grid[0][0].ch, 'A');
-        assert_eq!(vt.grid[1][0].ch, ' '); // Inserted blank line
-        assert_eq!(vt.grid[2][0].ch, 'B'); // Pushed down
+        assert_eq!(vt.grid[0][0].ch, "A");
+        assert_eq!(vt.grid[1][0].ch, " "); // Inserted blank line
+        assert_eq!(vt.grid[2][0].ch, "B"); // Pushed down
     }
 }

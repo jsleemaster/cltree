@@ -27,27 +27,17 @@ impl<'a> Widget for TerminalWidget<'a> {
             for row_idx in 0..rows_to_render {
                 if let Some(row) = grid.get(row_idx) {
                     for (col_idx, cell) in row.iter().enumerate().take(cols_to_render) {
+                        if cell.ch.is_empty() {
+                            continue; // wide char continuation cell
+                        }
                         let x = area.x + col_idx as u16;
                         let y = area.y + row_idx as u16;
                         if x < area.x + area.width && y < area.y + area.height {
                             if let Some(buf_cell) = buf.cell_mut((x, y)) {
-                                buf_cell.set_symbol(&cell.ch.to_string());
+                                buf_cell.set_symbol(&cell.ch);
                                 buf_cell.set_style(cell.style);
                             }
                         }
-                    }
-                }
-            }
-
-            // Render cursor (inverted style)
-            let cursor = vterm.cursor();
-            if cursor.visible {
-                let cx = area.x + cursor.x as u16;
-                let cy = area.y + cursor.y as u16;
-                if cx < area.x + area.width && cy < area.y + area.height {
-                    if let Some(cell) = buf.cell_mut((cx, cy)) {
-                        let current_style = cell.style();
-                        cell.set_style(current_style.add_modifier(Modifier::REVERSED));
                     }
                 }
             }
@@ -70,11 +60,14 @@ impl<'a> Widget for TerminalWidget<'a> {
 
                 if let Some(row) = row_data {
                     for (col_idx, cell) in row.iter().enumerate().take(cols_to_render) {
+                        if cell.ch.is_empty() {
+                            continue; // wide char continuation cell
+                        }
                         let x = area.x + col_idx as u16;
                         let y = area.y + screen_row as u16;
                         if x < area.x + area.width && y < area.y + area.height {
                             if let Some(buf_cell) = buf.cell_mut((x, y)) {
-                                buf_cell.set_symbol(&cell.ch.to_string());
+                                buf_cell.set_symbol(&cell.ch);
                                 buf_cell.set_style(cell.style);
                             }
                         }
