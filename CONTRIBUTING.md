@@ -54,6 +54,20 @@ cargo clippy -- -D warnings
 cargo run
 ```
 
+## Alternative Installation (for Rust developers)
+
+If you have Rust installed, you can install cltree directly:
+
+```bash
+# From crates.io
+cargo install cltree
+
+# From source
+git clone https://github.com/jsleemaster/cltree.git
+cd cltree
+cargo install --path .
+```
+
 ## Code Conventions
 
 - **Edition**: Rust 2021

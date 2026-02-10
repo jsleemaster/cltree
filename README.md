@@ -2,7 +2,6 @@
 
 [![GitHub Release](https://img.shields.io/github/v/release/jsleemaster/cltree)](https://github.com/jsleemaster/cltree/releases)
 [![npm](https://img.shields.io/npm/v/cltree)](https://www.npmjs.com/package/cltree)
-[![Crates.io Version](https://img.shields.io/crates/v/cltree)](https://crates.io/crates/cltree)
 [![Homebrew](https://img.shields.io/badge/homebrew-available-blue)](https://github.com/jsleemaster/homebrew-tap)
 [![GitHub Stars](https://img.shields.io/github/stars/jsleemaster/cltree)](https://github.com/jsleemaster/cltree/stargazers)
 [![GitHub Issues](https://img.shields.io/github/issues/jsleemaster/cltree)](https://github.com/jsleemaster/cltree/issues)
@@ -51,20 +50,6 @@ bun install -g cltree
 brew install jsleemaster/tap/cltree
 ```
 
-### From crates.io
-
-```bash
-cargo install cltree
-```
-
-### From source
-
-```bash
-git clone https://github.com/jsleemaster/cltree.git
-cd cltree
-cargo install --path .
-```
-
 ## Usage
 
 ```bash
@@ -103,38 +88,9 @@ Options:
   -V, --version              Print version
 ```
 
-## Development
-
-```bash
-# Clone
-git clone https://github.com/jsleemaster/cltree.git
-cd cltree
-
-# Run in development
-cargo run
-
-# Run tests
-cargo test
-
-# Build release
-cargo build --release
-```
-
-## Requirements
-
-- Rust 1.70+
-- Claude Code CLI installed and in PATH
-- Terminal with UTF-8 and true color support
-
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
