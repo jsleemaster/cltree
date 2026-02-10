@@ -21,6 +21,9 @@ Thumbs.db
 .env
 .env.local
 
+# Claude Code
+.claude/
+
 # npm package - downloaded binaries
 npm/bin/claude-explorer
 npm/bin/claude-explorer.exe
