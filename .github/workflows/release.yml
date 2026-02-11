@@ -12,33 +12,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  prepare:
-    name: Prepare Release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Bump Cargo.toml version
-        run: sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
-
-      - name: Bump npm/package.json version
-        working-directory: npm
-        run: npm version "${{ inputs.version }}" --no-git-tag-version
-
-      - name: Commit and tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml npm/package.json
-          git commit -m "chore: bump version to ${{ inputs.version }}"
-          git tag "v${{ inputs.version }}"
-          git push origin HEAD "v${{ inputs.version }}"
-
   build:
     name: Build (${{ matrix.target }})
-    needs: prepare
     strategy:
       matrix:
         include:
@@ -65,8 +40,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: v${{ inputs.version }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -78,6 +51,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Set version in Cargo.toml
+        shell: bash
+        run: sed -i.bak 's/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
@@ -123,8 +100,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: v${{ inputs.version }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v6
@@ -161,8 +136,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: v${{ inputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
