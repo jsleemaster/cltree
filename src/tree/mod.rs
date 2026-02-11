@@ -62,14 +62,24 @@ impl FileTree {
             .git_global(true)
             .git_exclude(true)
             .max_depth(Some(1))
-            .sort_by_file_name(|a, b| {
-                // Alphabetical sort by file name (directory-first sorting
-                // is handled after walking via entry metadata)
-                a.cmp(b)
-            })
             .build();
 
-        for entry in walker.flatten() {
+        let mut entries: Vec<_> = walker.flatten().collect();
+        entries.sort_by(|a, b| {
+            let a_is_dir = a.path().is_dir();
+            let b_is_dir = b.path().is_dir();
+            match (a_is_dir, b_is_dir) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => {
+                    let a_name = a.file_name().to_string_lossy().to_lowercase();
+                    let b_name = b.file_name().to_string_lossy().to_lowercase();
+                    a_name.cmp(&b_name)
+                }
+            }
+        });
+
+        for entry in entries {
             let entry_path = entry.path();
 
             // Skip the root itself when iterating
