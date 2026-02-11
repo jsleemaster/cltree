@@ -11,7 +11,9 @@ use crate::vterm::VirtualTerminal;
 
 /// Lock a mutex, recovering from poison (prior thread panic).
 fn lock_or_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 pub struct TerminalPane {

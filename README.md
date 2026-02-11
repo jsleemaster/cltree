@@ -6,6 +6,14 @@
 [![GitHub Stars](https://img.shields.io/github/stars/jsleemaster/cltree)](https://github.com/jsleemaster/cltree/stargazers)
 [![GitHub Issues](https://img.shields.io/github/issues/jsleemaster/cltree)](https://github.com/jsleemaster/cltree/issues)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Roadmap](https://img.shields.io/badge/roadmap-view-blue)](https://github.com/jsleemaster/cltree/issues?q=label%3Aroadmap)
+
+<p align="center">
+  <a href="README.md">English</a> |
+  <a href="README.ko.md">한국어</a> |
+  <a href="README.ja.md">日本語</a> |
+  <a href="README.zh-CN.md">中文</a>
+</p>
 
 A terminal-based file explorer designed to work alongside Claude Code CLI. View your project structure in a split-pane TUI while using Claude Code.
 

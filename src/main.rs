@@ -139,11 +139,7 @@ fn parse_args() -> Args {
 /// Safe to call multiple times.
 fn restore_terminal() {
     let _ = disable_raw_mode();
-    let _ = execute!(
-        io::stdout(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    );
+    let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
 }
 
 /// Whether we have already entered raw/alternate-screen mode.
