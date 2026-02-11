@@ -23,21 +23,12 @@ Sleep 3s
 # Navigate directories to show CWD tracking
 Type "cd src"
 Enter
-Sleep 3s
+Sleep 5s
 
 Type "cd ui"
 Enter
-Sleep 3s
+Sleep 5s
 
 Type "cd ../.."
 Enter
-Sleep 3s
-
-# Exit terminal
-Type "exit"
-Enter
-Sleep 2s
-
-# Quit cltree
-Ctrl+q
-Sleep 1s
+Sleep 5s
