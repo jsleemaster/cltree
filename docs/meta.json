@@ -1,0 +1,13 @@
+{
+  "title": "Claude Explorer",
+  "pages": [
+    "index",
+    "installation",
+    "usage",
+    "configuration",
+    "development",
+    "requirements",
+    "contributing",
+    "license"
+  ]
+}

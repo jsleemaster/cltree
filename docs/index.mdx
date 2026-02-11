@@ -1,0 +1,21 @@
+---
+title: "Claude Explorer"
+description: "A terminal-based file explorer designed to work alongside Claude Code CLI."
+---
+
+Claude Explorer is a terminal-based helper for Claude Code CLI. It presents a split-pane TUI: Claude Code on the left, and a file tree on the right.
+
+## Behavior
+
+- Split-pane layout with Claude Code on the left and the file tree on the right
+- When Claude Code moves to a different folder, the tree updates to show that directory
+
+## Quick Start
+
+```bash
+# Start in current directory
+claude-explorer
+
+# Start in specific directory
+claude-explorer --path /path/to/project
+```
