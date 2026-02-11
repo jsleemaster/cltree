@@ -1,16 +1,44 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.3.0)'
+        required: true
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Bump Cargo.toml version
+        run: sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
+
+      - name: Bump npm/package.json version
+        working-directory: npm
+        run: npm version "${{ inputs.version }}" --no-git-tag-version
+
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml npm/package.json
+          git commit -m "chore: bump version to ${{ inputs.version }}"
+          git tag "v${{ inputs.version }}"
+          git push origin HEAD "v${{ inputs.version }}"
+
   build:
     name: Build (${{ matrix.target }})
+    needs: prepare
     strategy:
       matrix:
         include:
@@ -37,6 +65,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: v${{ inputs.version }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -93,6 +123,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: v${{ inputs.version }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v6
@@ -109,14 +141,11 @@ jobs:
           mv checksums.txt ../
           cd ..
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ steps.version.outputs.VERSION }}
+          tag_name: v${{ inputs.version }}
+          name: Release v${{ inputs.version }}
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -126,30 +155,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish-crates:
-    name: Publish to crates.io
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Verify package
-        run: cargo publish --dry-run
-
-      - name: Publish to crates.io
-        run: cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
   publish-npm:
     name: Publish to npm
     needs: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: v${{ inputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -157,13 +170,9 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
       - name: Set package version
         working-directory: npm
-        run: npm version "${{ steps.version.outputs.VERSION }}" --no-git-tag-version
+        run: npm version "${{ inputs.version }}" --no-git-tag-version
 
       - name: Publish to npm
         working-directory: npm
@@ -182,10 +191,6 @@ jobs:
           path: artifacts
           pattern: "*.tar.gz"
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
       - name: Compute SHA256 checksums
         id: sha
         run: |
@@ -203,7 +208,7 @@ jobs:
 
       - name: Update formula
         run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
+          VERSION="${{ inputs.version }}"
           RELEASE_URL="https://github.com/jsleemaster/cltree/releases/download/v${VERSION}"
           SHA_MACOS_AARCH64="${{ steps.sha.outputs.MACOS_AARCH64 }}"
           SHA_MACOS_X86_64="${{ steps.sha.outputs.MACOS_X86_64 }}"
@@ -251,5 +256,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/cltree.rb
-          git commit -m "Update cltree to v${{ steps.version.outputs.VERSION }}"
+          git commit -m "Update cltree to v${{ inputs.version }}"
           git push
