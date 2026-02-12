@@ -177,6 +177,8 @@ jobs:
       - name: Install vhs
         run: |
           VHS_VERSION="0.8.0"
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
           wget -qO vhs.deb "https://github.com/charmbracelet/vhs/releases/download/v${VHS_VERSION}/vhs_${VHS_VERSION}_amd64.deb"
           sudo dpkg -i vhs.deb
           sudo apt-get install -f -y
