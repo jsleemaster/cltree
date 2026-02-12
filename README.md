@@ -48,39 +48,7 @@ brew install jsleemaster/tap/cltree
 ## Usage
 
 ```bash
-# Start in current directory
 cltree
-
-# Start in specific directory
-cltree --path /path/to/project
-
-# Adjust tree width (10-50%)
-cltree --tree-width 25
-
-# Show hidden files
-cltree --show-hidden
-```
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Ctrl+Q` | Quit |
-
-All other keystrokes are passed directly to Claude Code.
-
-## Configuration
-
-### Command line options
-
-```
-Options:
-  -p, --path <PATH>          Working directory [default: .]
-  -w, --tree-width <WIDTH>   Tree panel width percentage (10-50) [default: 30]
-  -a, --show-hidden          Show hidden files
-  -d, --depth <DEPTH>        Max tree depth [default: 10]
-  -h, --help                 Print help
-  -V, --version              Print version
 ```
 
 ## Contributing

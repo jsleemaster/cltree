@@ -48,39 +48,7 @@ brew install jsleemaster/tap/cltree
 ## 使用方法
 
 ```bash
-# 在当前目录启动
 cltree
-
-# 在指定目录启动
-cltree --path /path/to/project
-
-# 调整树宽度 (10-50%)
-cltree --tree-width 25
-
-# 显示隐藏文件
-cltree --show-hidden
-```
-
-## 键盘快捷键
-
-| 按键 | 操作 |
-|-----|--------|
-| `Ctrl+Q` | 退出 |
-
-其他所有按键都会直接转发到Claude Code。
-
-## 配置
-
-### 命令行选项
-
-```
-Options:
-  -p, --path <PATH>          工作目录 [默认: .]
-  -w, --tree-width <WIDTH>   树面板宽度百分比 (10-50) [默认: 30]
-  -a, --show-hidden          显示隐藏文件
-  -d, --depth <DEPTH>        最大树深度 [默认: 10]
-  -h, --help                 打印帮助信息
-  -V, --version              打印版本信息
 ```
 
 ## 贡献
