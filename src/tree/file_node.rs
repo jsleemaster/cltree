@@ -6,15 +6,26 @@ pub struct FileNode {
     pub name: String,
     pub depth: usize,
     pub is_dir: bool,
+    pub is_last: bool,
+    pub connector: Vec<bool>,
 }
 
 impl FileNode {
-    pub fn new(path: PathBuf, name: String, depth: usize, is_dir: bool) -> Self {
+    pub fn new(
+        path: PathBuf,
+        name: String,
+        depth: usize,
+        is_dir: bool,
+        is_last: bool,
+        connector: Vec<bool>,
+    ) -> Self {
         Self {
             path,
             name,
             depth,
             is_dir,
+            is_last,
+            connector,
         }
     }
 

@@ -14,7 +14,12 @@ Type "cltree"
 Enter
 Sleep 3s
 
-# Navigate into ui directory to show CWD tracking
+# Navigate into src directory
+Type "!cd src"
+Enter
+Sleep 5s
+
+# Navigate deeper into ui directory
 Type "!cd ui"
 Enter
 Sleep 5s

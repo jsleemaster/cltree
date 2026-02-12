@@ -39,22 +39,20 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
                 break;
             }
 
-            // Build the line
-            let indent = "  ".repeat(node.depth);
-            let icon = node.expanded_icon(true);
-
             // Check if this node is the CWD
             let is_cwd = self.cwd.is_some_and(|cwd| node.is_dir && node.path == cwd);
 
-            // Build display line with CWD marker
-            let line = if is_cwd {
-                format!("{}{}● {}", indent, icon, node.name)
-            } else {
-                format!("{}{} {}", indent, icon, node.name)
-            };
+            // Clear background for CWD item
+            if is_cwd {
+                for x in area.x..area.x + area.width {
+                    if let Some(cell) = buf.cell_mut((x, y)) {
+                        cell.set_bg(Color::Rgb(80, 70, 30));
+                    }
+                }
+            }
 
-            // Determine style
-            let style = if is_cwd {
+            let tree_style = Style::default().fg(Color::DarkGray);
+            let node_style = if is_cwd {
                 Style::default()
                     .bg(Color::Rgb(80, 70, 30))
                     .fg(Color::Rgb(255, 220, 100))
@@ -68,20 +66,49 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
                 s
             };
 
-            // Clear background for CWD item
-            if is_cwd {
-                for x in area.x..area.x + area.width {
-                    if let Some(cell) = buf.cell_mut((x, y)) {
-                        cell.set_bg(Color::Rgb(80, 70, 30));
-                    }
+            let mut x_offset = area.x;
+
+            if node.depth == 0 {
+                // Root node: icon + name, no tree prefix
+                let icon = node.expanded_icon(true);
+                let display = if is_cwd {
+                    format!("{}● {}", icon, node.name)
+                } else {
+                    format!("{} {}", icon, node.name)
+                };
+                buf.set_string(x_offset, y, &display, node_style);
+                x_offset += unicode_width::UnicodeWidthStr::width(display.as_str()) as u16;
+            } else {
+                // Draw ancestor connectors
+                for &ancestor_is_last in &node.connector {
+                    let connector_str = if ancestor_is_last { "    " } else { "│   " };
+                    buf.set_string(x_offset, y, connector_str, tree_style);
+                    x_offset += 4;
                 }
+
+                // Draw this node's branch connector
+                let branch = if node.is_last {
+                    "└── "
+                } else {
+                    "├── "
+                };
+                buf.set_string(x_offset, y, branch, tree_style);
+                x_offset += 4;
+
+                // Draw icon + name
+                let icon = node.expanded_icon(true);
+                let display = if is_cwd {
+                    format!("{}● {}", icon, node.name)
+                } else {
+                    format!("{} {}", icon, node.name)
+                };
+                buf.set_string(x_offset, y, &display, node_style);
+                x_offset += unicode_width::UnicodeWidthStr::width(display.as_str()) as u16;
             }
 
-            buf.set_string(area.x, y, &line, style);
-
             // Truncate if too long
-            let display_width = unicode_width::UnicodeWidthStr::width(line.as_str());
-            if display_width > area.width as usize {
+            let total_width = x_offset.saturating_sub(area.x);
+            if total_width > area.width {
                 if let Some(x) = area.x.checked_add(area.width.saturating_sub(1)) {
                     if let Some(cell) = buf.cell_mut((x, y)) {
                         cell.set_symbol("…");
