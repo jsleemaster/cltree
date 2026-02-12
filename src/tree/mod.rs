@@ -47,12 +47,29 @@ impl FileTree {
 
     fn rebuild_visible_nodes(&mut self) -> Result<()> {
         self.nodes.clear();
-        self.build_tree(&self.root.clone(), 0)?;
+        self.build_tree(&self.root.clone(), 0, &[])?;
         Ok(())
     }
 
-    fn build_tree(&mut self, path: &Path, depth: usize) -> Result<()> {
+    fn build_tree(&mut self, path: &Path, depth: usize, connector: &[bool]) -> Result<()> {
         if depth > self.max_depth {
+            return Ok(());
+        }
+
+        if depth == 0 {
+            // Root node
+            let is_dir = path.is_dir();
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.to_string_lossy().to_string());
+
+            let node = FileNode::new(path.to_path_buf(), name, 0, is_dir, true, vec![]);
+            self.nodes.push(node);
+
+            if is_dir {
+                self.build_tree(path, depth + 1, &[])?;
+            }
             return Ok(());
         }
 
@@ -64,8 +81,20 @@ impl FileTree {
             .max_depth(Some(1))
             .build();
 
-        let mut entries: Vec<_> = walker.flatten().collect();
-        entries.sort_by(|a, b| {
+        // Collect children (skip the directory itself)
+        let mut children: Vec<_> = walker
+            .flatten()
+            .filter(|entry| entry.path() != path)
+            .filter(|entry| {
+                if self.show_hidden {
+                    return true;
+                }
+                let name = entry.file_name().to_string_lossy();
+                !name.starts_with('.')
+            })
+            .collect();
+
+        children.sort_by(|a, b| {
             let a_is_dir = a.path().is_dir();
             let b_is_dir = b.path().is_dir();
             match (a_is_dir, b_is_dir) {
@@ -79,37 +108,32 @@ impl FileTree {
             }
         });
 
-        for entry in entries {
-            let entry_path = entry.path();
-
-            // Skip the root itself when iterating
-            if entry_path == path && depth > 0 {
-                continue;
-            }
-
-            // At depth 0, only process the root entry itself.
-            // Children will be added by the recursive call below.
-            if depth == 0 && entry_path != path {
-                continue;
-            }
-
+        let total = children.len();
+        for (i, entry) in children.into_iter().enumerate() {
+            let entry_path = entry.path().to_path_buf();
             let is_dir = entry_path.is_dir();
             let name = entry_path
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_else(|| entry_path.to_string_lossy().to_string());
 
-            // Skip hidden files if not showing them
-            if !self.show_hidden && name.starts_with('.') && depth > 0 {
-                continue;
-            }
+            let is_last = i == total - 1;
 
-            let node = FileNode::new(entry_path.to_path_buf(), name, depth, is_dir);
+            let node = FileNode::new(
+                entry_path.clone(),
+                name,
+                depth,
+                is_dir,
+                is_last,
+                connector.to_vec(),
+            );
             self.nodes.push(node);
 
-            // Always recurse into directories (all expanded)
+            // Recurse into directories with updated connector
             if is_dir {
-                self.build_tree(entry_path, depth + 1)?;
+                let mut child_connector = connector.to_vec();
+                child_connector.push(is_last);
+                self.build_tree(&entry_path, depth + 1, &child_connector)?;
             }
         }
 

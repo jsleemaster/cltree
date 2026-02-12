@@ -1,4 +1,4 @@
-.PHONY: check fmt clippy test build ci
+.PHONY: check fmt clippy test build ci demo
 
 # Run all CI checks locally (same as GitHub Actions)
 ci: fmt clippy test build
@@ -24,6 +24,10 @@ build:
 fix:
 	cargo fmt
 	@echo "Formatting fixed."
+
+# Record demo.gif from local release build (requires vhs: https://github.com/charmbracelet/vhs)
+demo: build
+	PATH="$(CURDIR)/target/release:$(PATH)" vhs demo.tape
 
 # Alias: check = ci
 check: ci
