@@ -36,7 +36,7 @@ unicode-width = "0.2"
 vte = "0.15"
 
 [dev-dependencies]
-tempfile = "3.24"
+tempfile = "3.25"
 
 [profile.release]
 lto = true
