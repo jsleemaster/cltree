@@ -139,7 +139,7 @@ cargo test ui::
 ## 알려진 이슈 / TODO
 
 - [ ] PTY 리사이즈 동기화 개선
-- [ ] 파일 변경 감지 (notify) 통합
+- [x] 파일 변경 감지 (notify) 통합
 - [ ] 마우스 클릭으로 파일 선택
 - [ ] 설정 파일 지원 (~/.config/cltree/config.toml)
 - [ ] 테마 커스터마이징
