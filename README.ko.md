@@ -48,39 +48,7 @@ brew install jsleemaster/tap/cltree
 ## 사용법
 
 ```bash
-# 현재 디렉토리에서 시작
 cltree
-
-# 특정 디렉토리에서 시작
-cltree --path /path/to/project
-
-# 트리 너비 조정 (10-50%)
-cltree --tree-width 25
-
-# 숨김 파일 표시
-cltree --show-hidden
-```
-
-## 키보드 단축키
-
-| 키 | 동작 |
-|-----|--------|
-| `Ctrl+Q` | 종료 |
-
-다른 모든 키 입력은 Claude Code로 직접 전달됩니다.
-
-## 설정
-
-### 명령줄 옵션
-
-```
-Options:
-  -p, --path <PATH>          작업 디렉토리 [기본값: .]
-  -w, --tree-width <WIDTH>   트리 패널 너비 백분율 (10-50) [기본값: 30]
-  -a, --show-hidden          숨김 파일 표시
-  -d, --depth <DEPTH>        최대 트리 깊이 [기본값: 10]
-  -h, --help                 도움말 출력
-  -V, --version              버전 출력
 ```
 
 ## 기여
