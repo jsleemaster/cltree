@@ -1,55 +1,10 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use std::path::PathBuf;
-use std::process::Command;
 use tokio::sync::mpsc;
 
 use crate::terminal::TerminalPane;
 use crate::tree::FileTree;
-
-fn copy_to_clipboard(text: &str) {
-    #[cfg(target_os = "macos")]
-    {
-        let _ = Command::new("pbcopy")
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-            .and_then(|mut child| {
-                use std::io::Write;
-                if let Some(ref mut stdin) = child.stdin {
-                    let _ = stdin.write_all(text.as_bytes());
-                }
-                child.wait()
-            });
-    }
-    #[cfg(target_os = "linux")]
-    {
-        // Try xclip first, fall back to xsel
-        let result = Command::new("xclip")
-            .args(["-selection", "clipboard"])
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-            .and_then(|mut child| {
-                use std::io::Write;
-                if let Some(ref mut stdin) = child.stdin {
-                    let _ = stdin.write_all(text.as_bytes());
-                }
-                child.wait()
-            });
-        if result.is_err() {
-            let _ = Command::new("xsel")
-                .arg("--clipboard")
-                .stdin(std::process::Stdio::piped())
-                .spawn()
-                .and_then(|mut child| {
-                    use std::io::Write;
-                    if let Some(ref mut stdin) = child.stdin {
-                        let _ = stdin.write_all(text.as_bytes());
-                    }
-                    child.wait()
-                });
-        }
-    }
-}
 
 pub struct App {
     pub tree: FileTree,
