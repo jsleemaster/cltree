@@ -43,7 +43,8 @@ This package downloads the pre-built native binary for your platform from [GitHu
 cargo install cltree
 
 # Homebrew (macOS/Linux)
-brew install jsleemaster/tap/cltree
+brew tap jsleemaster/tap
+brew install cltree
 ```
 
 ## License

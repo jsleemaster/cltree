@@ -1,7 +1,7 @@
 # VHS Demo for cltree
 Output demo.gif
 
-Set Shell zsh
+Set Shell bash
 Set FontSize 14
 Set Width 1200
 Set Height 600
@@ -15,16 +15,16 @@ Enter
 Sleep 3s
 
 # Navigate into src directory
-Type "!cd src"
+Type "cd src"
 Enter
-Sleep 5s
+Sleep 3s
 
-# Navigate deeper into ui directory
-Type "!cd ui"
+# Navigate deeper into tree subdirectory
+Type "cd tree"
 Enter
-Sleep 5s
+Sleep 3s
 
-# Navigate back to parent
-Type "!cd .."
+# Navigate back to project root
+Type "cd ../.."
 Enter
-Sleep 5s
+Sleep 3s

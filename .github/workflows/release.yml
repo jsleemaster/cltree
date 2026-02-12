@@ -153,6 +153,61 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  update-demo:
+    name: Update demo GIF
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download Linux x86_64 binary
+        uses: actions/download-artifact@v7
+        with:
+          name: cltree-linux-x86_64
+          path: ./bin
+
+      - name: Setup binary
+        run: |
+          chmod +x ./bin/cltree-linux-x86_64
+          sudo mv ./bin/cltree-linux-x86_64 /usr/local/bin/cltree
+
+      - name: Install vhs
+        run: |
+          VHS_VERSION="0.8.0"
+          wget -qO vhs.deb "https://github.com/charmbracelet/vhs/releases/download/v${VHS_VERSION}/vhs_${VHS_VERSION}_amd64.deb"
+          sudo dpkg -i vhs.deb
+          sudo apt-get install -f -y
+
+      - name: Install ttyd (vhs dependency)
+        run: sudo apt-get install -y ttyd || true
+
+      - name: Record demo
+        run: CLTREE_COMMAND=bash vhs demo.tape
+
+      - name: Create PR for demo.gif
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add demo.gif
+          if git diff --cached --quiet; then
+            echo "No changes to demo.gif"
+          else
+            BRANCH="chore/update-demo-v${{ inputs.version }}"
+            git checkout -b "$BRANCH"
+            git commit -m "chore: update demo.gif for v${{ inputs.version }}"
+            git push origin "$BRANCH"
+            gh pr create \
+              --title "chore: update demo.gif for v${{ inputs.version }}" \
+              --body "Auto-generated demo.gif from release workflow." \
+              --base main
+            gh pr merge "$BRANCH" --squash --auto
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   update-homebrew:
     name: Update Homebrew tap
     needs: release

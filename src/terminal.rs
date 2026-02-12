@@ -108,8 +108,9 @@ impl TerminalPane {
             pixel_height: 0,
         })?;
 
-        // Spawn claude process
-        let mut cmd = CommandBuilder::new("claude");
+        // Spawn claude process (CLTREE_COMMAND env var overrides the default)
+        let command = std::env::var("CLTREE_COMMAND").unwrap_or_else(|_| "claude".to_string());
+        let mut cmd = CommandBuilder::new(&command);
         cmd.cwd(cwd);
         for arg in claude_args {
             cmd.arg(arg);

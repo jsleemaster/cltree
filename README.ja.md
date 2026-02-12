@@ -42,7 +42,8 @@ bun install -g cltree
 ### Homebrew (macOS / Linux)
 
 ```bash
-brew install jsleemaster/tap/cltree
+brew tap jsleemaster/tap
+brew install cltree
 ```
 
 ## 使い方
