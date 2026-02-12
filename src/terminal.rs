@@ -100,6 +100,7 @@ impl TerminalPane {
         for arg in claude_args {
             cmd.arg(arg);
         }
+        cmd.env("TERM", "xterm-256color");
 
         let mut child = pty_pair.slave.spawn_command(cmd)?;
 
@@ -527,6 +528,20 @@ impl TerminalPane {
         if let Ok(mut guard) = self.pty_writer.lock() {
             if let Some(ref mut writer) = *guard {
                 let _ = writer.write_all(&[3]); // Ctrl+C
+                let _ = writer.flush();
+            }
+        }
+    }
+
+    pub fn send_focus_event(&mut self, gained: bool) {
+        let seq = if gained {
+            b"\x1b[I" as &[u8]
+        } else {
+            b"\x1b[O"
+        };
+        if let Ok(mut guard) = self.pty_writer.lock() {
+            if let Some(ref mut writer) = *guard {
+                let _ = writer.write_all(seq);
                 let _ = writer.flush();
             }
         }

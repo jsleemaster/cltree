@@ -7,7 +7,7 @@ pub mod vterm;
 
 use anyhow::Result;
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{DisableFocusChange, DisableMouseCapture, EnableFocusChange, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -139,7 +139,12 @@ fn parse_args() -> Args {
 /// Safe to call multiple times.
 fn restore_terminal() {
     let _ = disable_raw_mode();
-    let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+    let _ = execute!(
+        io::stdout(),
+        LeaveAlternateScreen,
+        DisableMouseCapture,
+        DisableFocusChange
+    );
 }
 
 /// Whether we have already entered raw/alternate-screen mode.
@@ -162,7 +167,12 @@ async fn main() -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        EnableMouseCapture,
+        EnableFocusChange
+    )?;
     TERMINAL_INITIALIZED.store(true, Ordering::SeqCst);
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -224,11 +234,20 @@ async fn run_app(
                 app.handle_mouse(mouse_event);
             }
             event::Event::Resize(_width, _height) => {}
+            event::Event::FocusGained => {
+                app.terminal.send_focus_event(true);
+            }
+            event::Event::FocusLost => {
+                app.terminal.send_focus_event(false);
+            }
             event::Event::FileChange(path) => {
                 app.handle_file_change(path);
             }
             event::Event::PtyOutput => {
                 // vterm already updated by the reader thread; just redraw on next loop iteration
+            }
+            event::Event::Signal => {
+                return Ok(());
             }
         }
     }

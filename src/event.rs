@@ -13,8 +13,11 @@ pub enum Event {
     Key(KeyEvent),
     Mouse(MouseEvent),
     Resize(u16, u16),
+    FocusGained,
+    FocusLost,
     FileChange(PathBuf),
     PtyOutput,
+    Signal,
 }
 
 pub struct EventHandler {
@@ -59,6 +62,16 @@ impl EventHandler {
                                     break;
                                 }
                             }
+                            Some(Ok(crossterm::event::Event::FocusGained)) => {
+                                if tx_clone.send(Event::FocusGained).is_err() {
+                                    break;
+                                }
+                            }
+                            Some(Ok(crossterm::event::Event::FocusLost)) => {
+                                if tx_clone.send(Event::FocusLost).is_err() {
+                                    break;
+                                }
+                            }
                             Some(Ok(_)) => {}
                             Some(Err(_)) => break,
                             None => break,
@@ -84,6 +97,20 @@ impl EventHandler {
                         if tx_clone.send(Event::Tick).is_err() {
                             break;
                         }
+                    }
+                    // SIGTERM handler (Unix only)
+                    _ = async {
+                        #[cfg(unix)]
+                        {
+                            let mut sig = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("failed to register SIGTERM handler");
+                            sig.recv().await;
+                        }
+                        #[cfg(not(unix))]
+                        {
+                            std::future::pending::<()>().await;
+                        }
+                    } => {
+                        let _ = tx_clone.send(Event::Signal);
                     }
                 }
             }
