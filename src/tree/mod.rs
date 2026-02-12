@@ -4,6 +4,7 @@ pub use file_node::FileNode;
 
 use anyhow::Result;
 use ignore::WalkBuilder;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 pub struct FileTree {
@@ -47,73 +48,98 @@ impl FileTree {
 
     fn rebuild_visible_nodes(&mut self) -> Result<()> {
         self.nodes.clear();
-        self.build_tree(&self.root.clone(), 0)?;
+        self.build_tree()?;
         Ok(())
     }
 
-    fn build_tree(&mut self, path: &Path, depth: usize) -> Result<()> {
-        if depth > self.max_depth {
-            return Ok(());
-        }
+    fn build_tree(&mut self) -> Result<()> {
+        let root = self.root.clone();
 
-        let walker = WalkBuilder::new(path)
+        // Single WalkBuilder traversal for the entire tree
+        let walker = WalkBuilder::new(&root)
             .hidden(!self.show_hidden)
             .git_ignore(true)
             .git_global(true)
             .git_exclude(true)
-            .max_depth(Some(1))
+            .max_depth(Some(self.max_depth))
             .build();
 
-        let mut entries: Vec<_> = walker.flatten().collect();
-        entries.sort_by(|a, b| {
-            let a_is_dir = a.path().is_dir();
-            let b_is_dir = b.path().is_dir();
-            match (a_is_dir, b_is_dir) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => {
-                    let a_name = a.file_name().to_string_lossy().to_lowercase();
-                    let b_name = b.file_name().to_string_lossy().to_lowercase();
-                    a_name.cmp(&b_name)
-                }
-            }
-        });
+        // Collect entries grouped by parent directory
+        let mut children_map: HashMap<PathBuf, Vec<(PathBuf, bool)>> = HashMap::new();
 
-        for entry in entries {
-            let entry_path = entry.path();
+        for entry in walker.flatten() {
+            let entry_path = entry.path().to_path_buf();
+            let is_dir = entry.file_type().is_some_and(|ft| ft.is_dir());
 
-            // Skip the root itself when iterating
-            if entry_path == path && depth > 0 {
+            // Skip the root directory itself
+            if entry_path == root {
                 continue;
             }
 
-            // At depth 0, only process the root entry itself.
-            // Children will be added by the recursive call below.
-            if depth == 0 && entry_path != path {
-                continue;
-            }
-
-            let is_dir = entry_path.is_dir();
-            let name = entry_path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| entry_path.to_string_lossy().to_string());
-
-            // Skip hidden files if not showing them
-            if !self.show_hidden && name.starts_with('.') && depth > 0 {
-                continue;
-            }
-
-            let node = FileNode::new(entry_path.to_path_buf(), name, depth, is_dir);
-            self.nodes.push(node);
-
-            // Always recurse into directories (all expanded)
-            if is_dir {
-                self.build_tree(entry_path, depth + 1)?;
+            if let Some(parent) = entry_path.parent() {
+                children_map
+                    .entry(parent.to_path_buf())
+                    .or_default()
+                    .push((entry_path, is_dir));
             }
         }
 
+        // Sort each group: directories first, then case-insensitive alphabetical
+        for children in children_map.values_mut() {
+            children.sort_by(|(a_path, a_is_dir), (b_path, b_is_dir)| {
+                match (a_is_dir, b_is_dir) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => {
+                        let a_name = a_path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_lowercase())
+                            .unwrap_or_default();
+                        let b_name = b_path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_lowercase())
+                            .unwrap_or_default();
+                        a_name.cmp(&b_name)
+                    }
+                }
+            });
+        }
+
+        // Emit root node
+        let root_name = root
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| root.to_string_lossy().to_string());
+        self.nodes
+            .push(FileNode::new(root.clone(), root_name, 0, true));
+
+        // DFS traversal using the collected and sorted children
+        self.emit_children(&root, 1, &children_map);
+
         Ok(())
+    }
+
+    fn emit_children(
+        &mut self,
+        dir: &Path,
+        depth: usize,
+        children_map: &HashMap<PathBuf, Vec<(PathBuf, bool)>>,
+    ) {
+        if let Some(children) = children_map.get(dir) {
+            for (child_path, is_dir) in children {
+                let name = child_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| child_path.to_string_lossy().to_string());
+
+                self.nodes
+                    .push(FileNode::new(child_path.clone(), name, depth, *is_dir));
+
+                if *is_dir {
+                    self.emit_children(child_path, depth + 1, children_map);
+                }
+            }
+        }
     }
 
     pub fn refresh(&mut self) {
