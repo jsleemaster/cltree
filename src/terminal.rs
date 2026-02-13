@@ -179,7 +179,7 @@ impl TerminalPane {
     }
 
     pub fn tick(&mut self) {
-        // Try OSC 7 first (shell-reported CWD)
+        // 1. Try OSC 7 first (shell-reported CWD)
         if let Ok(vt) = self.vterm.lock() {
             if let Some(reported) = vt.reported_cwd() {
                 if reported != self.cwd {
@@ -188,7 +188,22 @@ impl TerminalPane {
                     return;
                 }
             }
+        }
 
+        // 2. Try OS process CWD — reliable for shells that actually cd
+        //    (Claude Code doesn't cd, so this won't change for it → falls through to buffer scanning)
+        if let Some(pid) = self.child_pid {
+            if let Some(proc_cwd) = get_process_cwd(pid) {
+                if proc_cwd != self.cwd {
+                    self.cwd = proc_cwd;
+                    self.shallow_revert_count = 0;
+                    return;
+                }
+            }
+        }
+
+        // 3. Fall back to vterm buffer scanning (for Claude Code UI which doesn't cd)
+        if let Ok(vt) = self.vterm.lock() {
             // Scan vterm buffer for CWD path displayed by Claude Code.
             // Collect ALL valid paths and pick the deepest (most specific) one.
             let home = dirs::home_dir().unwrap_or_default();
@@ -261,17 +276,6 @@ impl TerminalPane {
                             self.shallow_revert_count = 0;
                         }
                     }
-                }
-                return;
-            }
-        }
-
-        // Fall back to polling the child process's actual CWD via OS API
-        if let Some(pid) = self.child_pid {
-            if let Some(proc_cwd) = get_process_cwd(pid) {
-                if proc_cwd != self.cwd {
-                    self.cwd = proc_cwd;
-                    self.shallow_revert_count = 0;
                 }
             }
         }

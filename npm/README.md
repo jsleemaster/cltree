@@ -36,17 +36,6 @@ This package downloads the pre-built native binary for your platform from [GitHu
 - Linux (x86_64 / ARM64)
 - Windows (x86_64)
 
-## Alternative installation methods
-
-```bash
-# From crates.io
-cargo install cltree
-
-# Homebrew (macOS/Linux)
-brew tap jsleemaster/tap
-brew install cltree
-```
-
 ## License
 
 MIT - see [LICENSE](https://github.com/jsleemaster/cltree/blob/main/LICENSE)

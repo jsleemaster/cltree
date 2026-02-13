@@ -2,7 +2,6 @@
 
 [![GitHub Release](https://img.shields.io/github/v/release/jsleemaster/cltree)](https://github.com/jsleemaster/cltree/releases)
 [![npm](https://img.shields.io/npm/v/cltree)](https://www.npmjs.com/package/cltree)
-[![Homebrew](https://img.shields.io/badge/homebrew-available-blue)](https://github.com/jsleemaster/homebrew-tap)
 [![GitHub Stars](https://img.shields.io/github/stars/jsleemaster/cltree)](https://github.com/jsleemaster/cltree/stargazers)
 [![GitHub Issues](https://img.shields.io/github/issues/jsleemaster/cltree)](https://github.com/jsleemaster/cltree/issues)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -37,13 +36,6 @@ A terminal-based file explorer designed to work alongside Claude Code CLI. View 
 npm install -g cltree
 # or
 bun install -g cltree
-```
-
-### Homebrew (macOS / Linux)
-
-```bash
-brew tap jsleemaster/tap
-brew install cltree
 ```
 
 ## Usage
