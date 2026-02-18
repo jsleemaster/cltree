@@ -18,5 +18,10 @@ echo "Claude path: $(which claude 2>&1)" >> "$LOG"
 echo "Claude version: $(claude --version 2>&1)" >> "$LOG"
 echo "" >> "$LOG"
 
+echo "Args passed: $@" >> "$LOG"
+echo "Arg count: $#" >> "$LOG"
+echo "CLAUDECODE: ${CLAUDECODE:-<unset>}" >> "$LOG"
+echo "" >> "$LOG"
+
 echo "=== Starting Claude ===" >> "$LOG"
 exec claude "$@" 2>> "$LOG"

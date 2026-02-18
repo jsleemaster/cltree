@@ -109,24 +109,37 @@ impl TerminalPane {
             pixel_height: 0,
         })?;
 
-        // Spawn claude process (CLTREE_COMMAND env var overrides the default)
+        // Spawn claude process via login shell so that shell profiles (.bashrc, .zshrc)
+        // are sourced — this ensures nvm/fnm/node and other environment setup is available.
         let command = std::env::var("CLTREE_COMMAND").unwrap_or_else(|_| "claude".to_string());
-        let mut cmd = CommandBuilder::new(&command);
-        cmd.cwd(cwd);
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+
+        // Build the full command string: "exec claude [args...]"
+        // Using exec so claude replaces the shell process (no extra process)
+        let mut full_cmd = format!("exec {}", command);
         for arg in claude_args {
-            cmd.arg(arg);
+            full_cmd.push(' ');
+            // Shell-escape arguments containing special characters
+            if arg.contains(' ')
+                || arg.contains('\'')
+                || arg.contains('"')
+                || arg.contains('\\')
+                || arg.contains('$')
+            {
+                full_cmd.push('\'');
+                full_cmd.push_str(&arg.replace('\'', "'\\''"));
+                full_cmd.push('\'');
+            } else {
+                full_cmd.push_str(arg);
+            }
         }
+
+        let mut cmd = CommandBuilder::new(&shell);
+        cmd.arg("-l");
+        cmd.arg("-c");
+        cmd.arg(&full_cmd);
+        cmd.cwd(cwd);
         cmd.env("TERM", "xterm-256color");
-        // Inherit essential environment variables for Claude CLI to work in VHS/PTY environments
-        if let Ok(path) = std::env::var("PATH") {
-            cmd.env("PATH", path);
-        }
-        if let Ok(home) = std::env::var("HOME") {
-            cmd.env("HOME", home);
-        }
-        if let Ok(lang) = std::env::var("LANG") {
-            cmd.env("LANG", lang);
-        }
         // Remove CLAUDECODE env var to allow nested Claude sessions
         cmd.env_remove("CLAUDECODE");
 
