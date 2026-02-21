@@ -140,6 +140,12 @@ impl FileTree {
         Ok(())
     }
 
+    pub fn set_root(&mut self, new_root: PathBuf) {
+        self.root = new_root;
+        self.offset = 0;
+        let _ = self.rebuild_visible_nodes();
+    }
+
     pub fn refresh(&mut self) {
         let _ = self.rebuild_visible_nodes();
     }

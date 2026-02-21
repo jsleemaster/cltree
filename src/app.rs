@@ -48,6 +48,14 @@ impl App {
 
     pub fn tick(&mut self) -> bool {
         self.terminal.tick();
+
+        // CWD가 트리 루트 밖이면 트리 루트 갱신
+        let cwd = self.terminal.cwd().to_path_buf();
+        if !cwd.starts_with(self.tree.root_path()) {
+            self.tree.set_root(cwd);
+            self.last_auto_scroll_cwd = None;
+        }
+
         // Process clipboard requests from vterm (OSC 52)
         {
             let requests = self.terminal.vterm_lock().take_clipboard_requests();
