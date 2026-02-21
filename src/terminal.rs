@@ -607,15 +607,6 @@ impl TerminalPane {
         }
     }
 
-    pub fn send_interrupt(&mut self) {
-        if let Ok(mut guard) = self.pty_writer.lock() {
-            if let Some(ref mut writer) = *guard {
-                let _ = writer.write_all(&[3]); // Ctrl+C
-                let _ = writer.flush();
-            }
-        }
-    }
-
     pub fn send_focus_event(&mut self, gained: bool) {
         // Only forward focus events if the child process has enabled
         // focus tracking (DECSET 1004). Otherwise the raw \x1b[I / \x1b[O
