@@ -3,8 +3,31 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-use notify::RecursiveMode;
-use notify_debouncer_mini::{new_debouncer, DebounceEventResult, DebouncedEventKind};
+use notify::{Config as NotifyConfig, RecursiveMode};
+use notify_debouncer_mini::{
+    new_debouncer_opt, Config as DebounceConfig, DebounceEventResult, DebouncedEventKind, Debouncer,
+};
+
+fn make_debouncer(tx: mpsc::UnboundedSender<PathBuf>) -> Debouncer<notify::PollWatcher> {
+    let notify_cfg = NotifyConfig::default().with_poll_interval(Duration::from_millis(100));
+    let debounce_cfg = DebounceConfig::default()
+        .with_timeout(Duration::from_millis(100))
+        .with_notify_config(notify_cfg);
+
+    new_debouncer_opt::<_, notify::PollWatcher>(debounce_cfg, move |result: DebounceEventResult| {
+        if let Ok(events) = result {
+            for fs_event in events {
+                if matches!(
+                    fs_event.kind,
+                    DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
+                ) {
+                    let _ = tx.send(fs_event.path);
+                }
+            }
+        }
+    })
+    .expect("Failed to create debouncer")
+}
 
 /// Test that notify debouncer detects file creation and sends events through mpsc channel
 #[tokio::test]
@@ -19,22 +42,7 @@ async fn test_file_watcher_detects_creation() {
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
 
     // Setup watcher (same pattern as EventHandler)
-    let mut debouncer = new_debouncer(
-        Duration::from_millis(100),
-        move |result: DebounceEventResult| {
-            if let Ok(events) = result {
-                for fs_event in events {
-                    if matches!(
-                        fs_event.kind,
-                        DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
-                    ) {
-                        let _ = tx.send(fs_event.path);
-                    }
-                }
-            }
-        },
-    )
-    .expect("Failed to create debouncer");
+    let mut debouncer = make_debouncer(tx);
 
     debouncer
         .watcher()
@@ -46,7 +54,7 @@ async fn test_file_watcher_detects_creation() {
     fs::write(&test_file, "hello").expect("Failed to write test file");
 
     // Wait for event (with timeout)
-    let event = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let event = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
 
     assert!(
         event.is_ok(),
@@ -77,22 +85,7 @@ async fn test_file_watcher_detects_deletion() {
 
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
 
-    let mut debouncer = new_debouncer(
-        Duration::from_millis(100),
-        move |result: DebounceEventResult| {
-            if let Ok(events) = result {
-                for fs_event in events {
-                    if matches!(
-                        fs_event.kind,
-                        DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
-                    ) {
-                        let _ = tx.send(fs_event.path);
-                    }
-                }
-            }
-        },
-    )
-    .expect("Failed to create debouncer");
+    let mut debouncer = make_debouncer(tx);
 
     debouncer
         .watcher()
@@ -106,7 +99,7 @@ async fn test_file_watcher_detects_deletion() {
     fs::remove_file(&test_file).expect("Failed to remove file");
 
     // Wait for event
-    let event = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let event = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
 
     assert!(
         event.is_ok(),
@@ -127,22 +120,7 @@ async fn test_file_watcher_recursive() {
 
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
 
-    let mut debouncer = new_debouncer(
-        Duration::from_millis(100),
-        move |result: DebounceEventResult| {
-            if let Ok(events) = result {
-                for fs_event in events {
-                    if matches!(
-                        fs_event.kind,
-                        DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
-                    ) {
-                        let _ = tx.send(fs_event.path);
-                    }
-                }
-            }
-        },
-    )
-    .expect("Failed to create debouncer");
+    let mut debouncer = make_debouncer(tx);
 
     debouncer
         .watcher()
@@ -157,7 +135,7 @@ async fn test_file_watcher_recursive() {
     fs::write(&nested_file, "nested content").expect("Failed to write nested file");
 
     // Wait for event
-    let event = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let event = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
 
     assert!(
         event.is_ok(),

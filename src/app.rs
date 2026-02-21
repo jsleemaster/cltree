@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::prelude::Rect;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
@@ -71,17 +71,8 @@ impl App {
 
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
         self.selection = None;
-        match (key.code, key.modifiers) {
-            (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
-                self.terminal.send_interrupt();
-                false
-            }
-            (KeyCode::Char('q'), KeyModifiers::CONTROL) => true,
-            _ => {
-                self.terminal.handle_key(key);
-                false
-            }
-        }
+        self.terminal.handle_key(key);
+        false
     }
 
     pub fn handle_paste(&mut self, text: String) {

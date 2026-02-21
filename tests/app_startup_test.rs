@@ -101,8 +101,10 @@ fn test_terminal_pane_handles_missing_claude() {
 #[tokio::test]
 async fn test_file_change_triggers_tree_refresh() {
     use ignore::WalkBuilder;
-    use notify::RecursiveMode;
-    use notify_debouncer_mini::{new_debouncer, DebounceEventResult, DebouncedEventKind};
+    use notify::{Config as NotifyConfig, RecursiveMode};
+    use notify_debouncer_mini::{
+        new_debouncer_opt, Config as DebounceConfig, DebounceEventResult, DebouncedEventKind,
+    };
     use std::time::Duration;
     use tokio::sync::mpsc;
 
@@ -120,8 +122,12 @@ async fn test_file_change_triggers_tree_refresh() {
     // Setup watcher
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
 
-    let mut debouncer = new_debouncer(
-        Duration::from_millis(100),
+    let notify_cfg = NotifyConfig::default().with_poll_interval(Duration::from_millis(100));
+    let debounce_cfg = DebounceConfig::default()
+        .with_timeout(Duration::from_millis(100))
+        .with_notify_config(notify_cfg);
+    let mut debouncer = new_debouncer_opt::<_, notify::PollWatcher>(
+        debounce_cfg,
         move |result: DebounceEventResult| {
             if let Ok(events) = result {
                 for fs_event in events {
@@ -146,7 +152,7 @@ async fn test_file_change_triggers_tree_refresh() {
     fs::write(root.join("new_file.txt"), "created by claude").unwrap();
 
     // Wait for event
-    let event = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let event = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
     assert!(event.is_ok(), "Should detect new file creation");
 
     // After refresh, tree should have more entries

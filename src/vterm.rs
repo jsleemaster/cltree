@@ -231,6 +231,10 @@ impl VirtualTerminal {
     }
 
     fn put_char(&mut self, ch: char) {
+        if self.cols == 0 || self.rows == 0 {
+            return;
+        }
+
         // Combining/zero-width characters merge into previous cell
         let char_width = unicode_width::UnicodeWidthChar::width(ch);
         if char_width == Some(0) || char_width.is_none() {
@@ -1173,5 +1177,15 @@ mod tests {
         // DECRST 1004 disables focus tracking
         vt.feed(b"\x1b[?1004l");
         assert!(!vt.focus_tracking_enabled());
+    }
+
+    #[test]
+    fn test_feed_with_zero_sized_terminal_does_not_panic() {
+        let mut vt = VirtualTerminal::new(80, 24);
+        vt.resize(0, 0);
+        vt.feed(b"hello");
+        vt.feed("한".as_bytes());
+        assert_eq!(vt.cols, 0);
+        assert_eq!(vt.rows, 0);
     }
 }
