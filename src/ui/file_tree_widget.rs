@@ -20,6 +20,10 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
     type State = FileTreeWidgetState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        if area.width == 0 || area.height == 0 {
+            return;
+        }
+
         let nodes = self.tree.nodes();
         let visible_height = area.height as usize;
 
@@ -138,5 +142,27 @@ impl<'a> StatefulWidget for FileTreeWidget<'a> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tree::FileTree;
+    use crate::ui::FileTreeWidgetState;
+    use ratatui::{buffer::Buffer, widgets::StatefulWidget};
+
+    #[test]
+    fn render_does_not_panic_when_area_width_is_zero() {
+        let temp = tempfile::tempdir().expect("failed to create tempdir");
+        std::fs::write(temp.path().join("seed.txt"), "x").expect("failed to create seed file");
+        let tree = FileTree::new(temp.path(), false, 10).expect("failed to build tree");
+
+        let widget = FileTreeWidget::new(&tree, None);
+        let area = Rect::new(0, 0, 0, 1);
+        let mut buf = Buffer::empty(area);
+        let mut state = FileTreeWidgetState { offset: 0 };
+
+        widget.render(area, &mut buf, &mut state);
     }
 }

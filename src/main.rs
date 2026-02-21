@@ -229,6 +229,7 @@ async fn run_app(
                 if app.tick() {
                     return Ok(());
                 }
+                event_handler.update_watch_path(Some(app.tree.root_path().to_path_buf()));
             }
             event::Event::Key(key_event) => {
                 if app.handle_key(key_event) {

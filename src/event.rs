@@ -1,11 +1,17 @@
 use anyhow::Result;
 use crossterm::event::{EventStream, KeyEvent, MouseEvent};
 use futures::StreamExt;
-use notify::RecursiveMode;
-use notify_debouncer_mini::{new_debouncer, DebounceEventResult, DebouncedEventKind, Debouncer};
+use notify::{Config as NotifyConfig, PollWatcher, RecursiveMode};
+use notify_debouncer_mini::{
+    new_debouncer_opt, Config as DebounceConfig, DebounceEventResult, DebouncedEventKind, Debouncer,
+};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc;
+
+// Tuned for faster UI reflection while keeping duplicate event noise manageable.
+const WATCH_POLL_INTERVAL_MS: u64 = 75;
+const WATCH_DEBOUNCE_TIMEOUT_MS: u64 = 50;
 
 #[derive(Debug)]
 pub enum Event {
@@ -24,7 +30,8 @@ pub enum Event {
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<Event>,
     // Keep the debouncer alive to prevent it from being dropped
-    _debouncer: Option<Debouncer<notify::RecommendedWatcher>>,
+    debouncer: Option<Debouncer<PollWatcher>>,
+    watched_path: Option<PathBuf>,
 }
 
 impl EventHandler {
@@ -123,37 +130,61 @@ impl EventHandler {
             }
         });
 
-        // Initialize file watcher if watch_path is provided
-        let debouncer = watch_path.and_then(|path| {
-            let fs_tx = tx.clone();
-            let mut debouncer = new_debouncer(
-                Duration::from_millis(300),
-                move |result: DebounceEventResult| {
-                    if let Ok(events) = result {
-                        for fs_event in events {
-                            if matches!(
-                                fs_event.kind,
-                                DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
-                            ) {
-                                let _ = fs_tx.send(Event::FileChange(fs_event.path));
-                            }
-                        }
-                    }
-                },
-            )
-            .ok()?;
+        let mut handler = Self {
+            rx,
+            debouncer: Self::build_debouncer(tx.clone()).ok(),
+            watched_path: None,
+        };
+        handler.update_watch_path(watch_path);
+        handler
+    }
 
-            debouncer
+    fn build_debouncer(
+        fs_tx: mpsc::UnboundedSender<Event>,
+    ) -> notify::Result<Debouncer<PollWatcher>> {
+        // Use PollWatcher explicitly because FSEvent can miss events in sandboxed/virtualized environments.
+        let notify_cfg = NotifyConfig::default()
+            .with_poll_interval(Duration::from_millis(WATCH_POLL_INTERVAL_MS));
+        let debounce_cfg = DebounceConfig::default()
+            .with_timeout(Duration::from_millis(WATCH_DEBOUNCE_TIMEOUT_MS))
+            .with_notify_config(notify_cfg);
+
+        new_debouncer_opt::<_, PollWatcher>(debounce_cfg, move |result: DebounceEventResult| {
+            if let Ok(events) = result {
+                for fs_event in events {
+                    if matches!(
+                        fs_event.kind,
+                        DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
+                    ) {
+                        let _ = fs_tx.send(Event::FileChange(fs_event.path));
+                    }
+                }
+            }
+        })
+    }
+
+    pub fn update_watch_path(&mut self, watch_path: Option<PathBuf>) {
+        let normalized = watch_path.map(|path| path.canonicalize().unwrap_or(path));
+        if self.watched_path == normalized {
+            return;
+        }
+
+        let Some(debouncer) = self.debouncer.as_mut() else {
+            return;
+        };
+
+        if let Some(old) = self.watched_path.take() {
+            let _ = debouncer.watcher().unwatch(&old);
+        }
+
+        if let Some(path) = normalized {
+            if debouncer
                 .watcher()
                 .watch(&path, RecursiveMode::Recursive)
-                .ok()?;
-
-            Some(debouncer)
-        });
-
-        Self {
-            rx,
-            _debouncer: debouncer,
+                .is_ok()
+            {
+                self.watched_path = Some(path);
+            }
         }
     }
 
