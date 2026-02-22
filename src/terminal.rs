@@ -313,6 +313,9 @@ impl TerminalPane {
                                 self.cwd = path;
                                 self.pending_cwd = None;
                                 self.pending_cwd_count = 0;
+                                // Clear stale OSC 7 cache so it doesn't immediately
+                                // override the fallback-scanned CWD next tick
+                                vt.clear_reported_cwd();
                             }
                         } else {
                             self.pending_cwd = Some(path);
