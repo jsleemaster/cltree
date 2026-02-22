@@ -239,7 +239,7 @@ impl TerminalPane {
         }
 
         // 3. Fall back to vterm buffer scanning (for Claude Code UI which doesn't cd)
-        if let Ok(vt) = self.vterm.lock() {
+        if let Ok(mut vt) = self.vterm.lock() {
             // Scan vterm buffer for CWD path displayed by Claude Code.
             // Collect ALL valid paths and pick the deepest (most specific) one.
             let home = dirs::home_dir().unwrap_or_default();
