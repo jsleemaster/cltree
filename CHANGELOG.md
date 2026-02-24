@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-02-24
+
+### Fixed
+
+- Cleared stale OSC 7 cache entries when fallback buffer scan indicates the shell CWD reverted.
+
+### Changed
+
+- Updated `futures` dependency from `0.3.31` to `0.3.32`.
+
 ## [0.4.4] - 2026-02-21
 
 ### Fixed
@@ -65,7 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Command line options for path, tree width, hidden files, and depth
 - Help popup with `?` or `F1`
 
-[Unreleased]: https://github.com/jsleemaster/cltree/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/jsleemaster/cltree/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/jsleemaster/cltree/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/jsleemaster/cltree/compare/v0.4.3...v0.4.4
 [0.2.0]: https://github.com/jsleemaster/cltree/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jsleemaster/cltree/releases/tag/v0.1.0
