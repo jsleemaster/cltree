@@ -103,6 +103,11 @@ impl VirtualTerminal {
         self.reported_cwd.as_deref()
     }
 
+    /// Clear the cached OSC 7 CWD (called when fallback scan overrides it)
+    pub fn clear_reported_cwd(&mut self) {
+        self.reported_cwd = None;
+    }
+
     /// Whether the child process has enabled focus event tracking (DECSET 1004)
     pub fn focus_tracking_enabled(&self) -> bool {
         self.focus_tracking
